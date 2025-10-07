@@ -458,6 +458,8 @@ When Boss Jo asks for a song:
 - Above all, Boss Jo comes first, always.`;
 
 const defaultUserSettings = {
+  logoUrl:
+    'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
   personaName: 'Beatrice',
   rolesAndDescription: defaultRolesAndDescription,
   voice: 'Aoede',
@@ -469,11 +471,13 @@ const defaultUserSettings = {
  */
 export const useUserSettings = create(
   persist<{
+    logoUrl: string;
     personaName: string;
     rolesAndDescription: string;
     voice: string;
     memories: string[];
     loadUserData: (userEmail: string) => Promise<void>;
+    setLogoUrl: (url: string) => Promise<void>;
     savePersona: (name: string, description: string) => Promise<void>;
     setVoice: (voice: string) => Promise<void>;
     addMemory: (memoryText: string) => Promise<void>;
@@ -487,7 +491,7 @@ export const useUserSettings = create(
           // Fetch user settings
           const { data, error } = await supabase
             .from('user_settings')
-            .select('voice, persona_name, roles_and_description')
+            .select('voice, persona_name, roles_and_description, logo_url')
             .eq('user_email', userEmail)
             .single();
 
@@ -497,12 +501,14 @@ export const useUserSettings = create(
               voice?: string;
               personaName?: string;
               rolesAndDescription?: string;
+              logoUrl?: string;
             } = {};
             if (data.voice) settingsUpdate.voice = data.voice;
             if (data.persona_name)
               settingsUpdate.personaName = data.persona_name;
             if (data.roles_and_description)
               settingsUpdate.rolesAndDescription = data.roles_and_description;
+            if (data.logo_url) settingsUpdate.logoUrl = data.logo_url;
             set(settingsUpdate);
           } else if (error && error.code === 'PGRST116') {
             // No settings found, this is a new user. Create default settings.
@@ -512,12 +518,17 @@ export const useUserSettings = create(
               .insert({
                 user_email: userEmail,
                 persona_name: defaultUserSettings.personaName,
-                roles_and_description: defaultUserSettings.rolesAndDescription,
+                roles_and_description:
+                  defaultUserSettings.rolesAndDescription,
                 voice: defaultUserSettings.voice,
+                logo_url: defaultUserSettings.logoUrl,
               });
 
             if (insertError) {
-              console.error('Error creating default user settings:', insertError);
+              console.error(
+                'Error creating default user settings:',
+                insertError,
+              );
             } else {
               // Set the state to the defaults since we just created them
               get().resetToDefaults();
@@ -544,6 +555,30 @@ export const useUserSettings = create(
         }
       },
       resetToDefaults: () => set(defaultUserSettings),
+      setLogoUrl: async (url: string) => {
+        set({ logoUrl: url });
+        const { user } = useAuthStore.getState();
+        if (!user?.email) {
+          console.warn('Cannot save logo URL, user is not connected.');
+          return;
+        }
+
+        try {
+          const { error } = await supabase.from('user_settings').upsert({
+            user_email: user.email,
+            logo_url: url,
+          });
+
+          if (error) {
+            console.error('Error saving logo URL:', error);
+            useUI.getState().showSnackbar('Failed to save logo.');
+          } else {
+            useUI.getState().showSnackbar('Logo updated successfully.');
+          }
+        } catch (error) {
+          console.error('Unexpected error saving logo URL:', error);
+        }
+      },
       savePersona: async (name, description) => {
         set({ personaName: name, rolesAndDescription: description }); // Optimistic update
         const { user } = useAuthStore.getState();
@@ -959,464 +994,4 @@ export const useTools = create<{
     }),
   removeTool: (toolName: string) =>
     set(state => ({
-      tools: state.tools.filter(tool => tool.name !== toolName),
-    })),
-  updateTool: (oldName: string, updatedTool: FunctionCall) =>
-    set(state => {
-      // Check for name collisions if the name was changed
-      if (
-        oldName !== updatedTool.name &&
-        state.tools.some(tool => tool.name === updatedTool.name)
-      ) {
-        // FIX: Removed erroneous backslash from template literal which caused a syntax error.
-        console.warn(`Tool with name "${updatedTool.name}" already exists.`);
-        // Prevent the update by returning the current state
-        return state;
-      }
-      return {
-        tools: state.tools.map(tool =>
-          tool.name === oldName ? updatedTool : tool,
-        ),
-      };
-    }),
-}));
-
-/**
- * Logs
- */
-export interface LiveClientToolResponse {
-  functionResponses?: FunctionResponse[];
-}
-export interface GroundingChunk {
-  web?: {
-    // FIX: Match @google/genai types by making uri and title optional.
-    uri?: string;
-    title?: string;
-  };
-}
-
-export interface ConversationTurn {
-  timestamp: Date;
-  role: 'user' | 'agent' | 'system';
-  text: string;
-  isFinal: boolean;
-  image?: string | null;
-  toolUseRequest?: LiveServerToolCall;
-  toolUseResponse?: LiveClientToolResponse;
-  groundingChunks?: GroundingChunk[];
-}
-
-export const useLogStore = create<{
-  turns: ConversationTurn[];
-  addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) => void;
-  updateLastTurn: (update: Partial<ConversationTurn>) => void;
-  clearTurns: () => Promise<void>;
-  sendMessage: (
-    text: string,
-    newImage?: { data: string; mimeType: string } | null,
-  ) => Promise<void>;
-  loadHistory: () => Promise<void>;
-  clearTurnsForLogout: () => void;
-}>((set, get) => ({
-  turns: [],
-  addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) =>
-    set(state => ({
-      turns: [...state.turns, { ...turn, timestamp: new Date() }],
-    })),
-  loadHistory: async () => {
-    const { user } = useAuthStore.getState();
-    if (!user?.email) {
-      set({ turns: [] }); // Clear turns if no user is logged in
-      return;
-    }
-    try {
-      const { data, error } = await supabase
-        .from('conversation_history')
-        .select('turn_data, created_at')
-        .eq('user_email', user.email)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        throw error;
-      }
-      if (data) {
-        const loadedTurns: ConversationTurn[] = data.map(record => ({
-          ...(record.turn_data as any),
-          timestamp: new Date(record.created_at),
-        }));
-        set({ turns: loadedTurns });
-      }
-    } catch (error) {
-      console.error('Error loading conversation history:', error);
-      useUI.getState().showSnackbar('Could not load chat history.');
-    }
-  },
-  sendMessage: async (
-    text: string,
-    newImage?: { data: string; mimeType: string } | null,
-  ) => {
-    const { addTurn, updateLastTurn } = get();
-    const { editingImage, setEditingImage } = useUI.getState();
-    const { getSystemPrompt } = useUserSettings.getState();
-
-    // Determine the image to show in the user's turn log.
-    const imageForLog = newImage
-      ? `data:${newImage.mimeType};base64,${newImage.data}`
-      : editingImage
-        ? `data:${editingImage.mimeType};base64,${editingImage.data}`
-        : null;
-
-    addTurn({
-      role: 'user',
-      text,
-      image: imageForLog,
-      isFinal: true,
-    });
-
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      addTurn({
-        role: 'system',
-        text: 'API_KEY is not configured.',
-        isFinal: true,
-      });
-      return;
-    }
-    const ai = new GoogleGenAI({ apiKey });
-
-    // Case 1: Image Editing
-    if (editingImage && text) {
-      addTurn({ role: 'agent', text: 'Editing image...', isFinal: false });
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  data: editingImage.data,
-                  mimeType: editingImage.mimeType,
-                },
-              },
-              { text: text },
-            ],
-          },
-          config: {
-            responseModalities: [Modality.IMAGE, Modality.TEXT],
-          },
-        });
-
-        let editedImage: string | null = null;
-        let responseText = '';
-
-        for (const part of response.candidates[0].content.parts) {
-          if (part.text) {
-            responseText += part.text + ' ';
-          } else if (part.inlineData) {
-            editedImage = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-          }
-        }
-
-        updateLastTurn({
-          text: responseText.trim() || 'Here is the edited image.',
-          image: editedImage,
-          isFinal: true,
-        });
-      } catch (error) {
-        console.error('Error editing image:', error);
-        const errorMessage =
-          error instanceof Error ? error.message : 'An unknown error occurred.';
-        updateLastTurn({
-          text: `Sorry, I encountered an error while editing the image: ${errorMessage}`,
-          isFinal: true,
-        });
-      } finally {
-        setEditingImage(null);
-      }
-      return;
-    }
-
-    // Case 2: Image Generation
-    const generationKeywords = [
-      'create an image',
-      'generate an image',
-      'draw a picture',
-      'create a picture',
-      'draw an image',
-      'make an image',
-      'make a picture',
-      'show me a picture of',
-      'show me an image of',
-    ];
-    const lowerCaseText = text.toLowerCase();
-    
-    // A specific check for prompts starting with "imagine" is a common pattern for image generation.
-    const isImaginePrompt = lowerCaseText.trim().startsWith('imagine ');
-
-    if (isImaginePrompt || generationKeywords.some(keyword => lowerCaseText.includes(keyword))) {
-      addTurn({ role: 'agent', text: 'Generating image...', isFinal: false });
-      try {
-        const response = await ai.models.generateImages({
-          model: 'imagen-4.0-generate-001',
-          prompt: text,
-          config: {
-            numberOfImages: 1,
-            outputMimeType: 'image/jpeg',
-          },
-        });
-
-        const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-        const imageUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
-
-        updateLastTurn({
-          text: 'Here is the image you requested.',
-          image: imageUrl,
-          isFinal: true,
-        });
-      } catch (error) {
-        console.error('Error generating image:', error);
-        const errorMessage =
-          error instanceof Error ? error.message : 'An unknown error occurred.';
-        updateLastTurn({
-          text: `Sorry, I encountered an error while generating the image: ${errorMessage}`,
-          isFinal: true,
-        });
-      }
-      return;
-    }
-
-    // Case 3: Standard Chat / Multimodal (with a new image)
-    try {
-      const historyTurns = get().turns.slice(0, -1);
-      const history = historyTurns
-        .map(turn => ({
-          role: turn.role === 'agent' ? 'model' : 'user',
-          parts: [{ text: turn.text }], // Note: simplified history, not including images
-        }))
-        .filter(turn => turn.role === 'user' || turn.role === 'model');
-
-      const userParts: any[] = [];
-      if (newImage) {
-        userParts.push({
-          inlineData: {
-            mimeType: newImage.mimeType,
-            data: newImage.data,
-          },
-        });
-      }
-      if (text) {
-        userParts.push({ text: text });
-      }
-
-      const contents = [...history, { role: 'user', parts: userParts }];
-
-      const stream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
-        contents: contents,
-        config: {
-          systemInstruction: getSystemPrompt(),
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      addTurn({ role: 'agent', text: '', isFinal: false });
-      let agentResponse = '';
-      for await (const chunk of stream) {
-        const chunkText = chunk.text;
-        if (chunkText) {
-          agentResponse += chunkText;
-          updateLastTurn({ text: agentResponse });
-        }
-      }
-      updateLastTurn({ isFinal: true });
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unknown error occurred.';
-      addTurn({
-        role: 'system',
-        text: `Sorry, I encountered an error: ${errorMessage}`,
-        isFinal: true,
-      });
-    }
-  },
-  updateLastTurn: (update: Partial<Omit<ConversationTurn, 'timestamp'>>) => {
-    set(state => {
-      if (state.turns.length === 0) {
-        return state;
-      }
-      const newTurns = [...state.turns];
-      const lastTurn = { ...newTurns[newTurns.length - 1], ...update };
-      newTurns[newTurns.length - 1] = lastTurn;
-
-      // Save final turn to Supabase
-      if (lastTurn.isFinal) {
-        const { user } = useAuthStore.getState();
-        if (user?.email) {
-          // Exclude complex/unnecessary fields and the timestamp before saving
-          const {
-            timestamp,
-            toolUseRequest,
-            toolUseResponse,
-            groundingChunks,
-            ...turnToSave
-          } = lastTurn;
-
-          // This is fire-and-forget to not block the UI
-          supabase
-            .from('conversation_history')
-            .insert({
-              user_email: user.email,
-              turn_data: turnToSave,
-            })
-            .then(({ error }) => {
-              if (error)
-                console.error('Error saving conversation turn:', error);
-            });
-        }
-      }
-
-      return { turns: newTurns };
-    });
-  },
-  clearTurns: async () => {
-    if (window.confirm('Are you sure you want to start a new chat? This will delete your current conversation history.')) {
-      set({ turns: [] });
-      const { user } = useAuthStore.getState();
-      if (!user?.email) {
-        return;
-      }
-      const { error } = await supabase
-        .from('conversation_history')
-        .delete()
-        .eq('user_email', user.email);
-
-      if (error) {
-        console.error('Error clearing history:', error);
-        useUI.getState().showSnackbar('Failed to clear chat history.');
-      } else {
-        useUI.getState().showSnackbar('New chat started.');
-      }
-    }
-  },
-  clearTurnsForLogout: () => set({ turns: [] }),
-}));
-
-// Fix: Add App interface and useAppsStore to support new app components.
-/**
- * Apps
- */
-export interface App {
-  id: string;
-  title: string;
-  description: string;
-  app_url: string;
-  logo_url: string;
-}
-
-const defaultKithaiApp: App = {
-  id: 'default-kithai-app',
-  title: 'Kithai AI',
-  description: 'Your personal AI assistant, ready to chat, help, and connect.',
-  app_url: 'about:blank', // Represents the main app, opens a blank page.
-  logo_url: 'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
-};
-
-const defaultTranslatorApp: App = {
-  id: 'default-translator-app',
-  title: 'Translator',
-  description: 'Translate text between many languages instantly.',
-  app_url: 'https://translate-now-539403796561.us-west1.run.app',
-  logo_url: 'https://api.iconify.design/logos:google-translate.svg',
-};
-
-interface AppsState {
-  apps: App[];
-  isLoading: boolean;
-  fetchApps: () => Promise<void>;
-  addApp: (appData: {
-    title: string;
-    description: string;
-    app_url: string;
-    logoFile: File;
-  }) => Promise<void>;
-}
-
-const defaultApps = [defaultTranslatorApp, defaultKithaiApp];
-
-export const useAppsStore = create<AppsState>((set, get) => ({
-  apps: defaultApps,
-  isLoading: false,
-  fetchApps: async () => {
-    set({ isLoading: true });
-    const { user } = useAuthStore.getState();
-    if (!user?.email) {
-      set({ apps: defaultApps, isLoading: false });
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('apps')
-        .select('*')
-        .eq('user_email', user.email)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-      
-      const userApps = (data as App[]) || [];
-      set({ apps: [...defaultApps, ...userApps], isLoading: false });
-
-    } catch (error) {
-      console.error('Error fetching apps:', error);
-      useUI.getState().showSnackbar('Could not load apps.');
-      set({ apps: defaultApps, isLoading: false });
-    }
-  },
-  addApp: async ({ title, description, app_url, logoFile }) => {
-    const { user } = useAuthStore.getState();
-    if (!user?.email) {
-      useUI.getState().showSnackbar('You must be logged in to add an app.');
-      return;
-    }
-
-    try {
-      // 1. Upload logo
-      const fileExt = logoFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('app_logos')
-        .upload(filePath, logoFile);
-
-      if (uploadError) throw uploadError;
-
-      // 2. Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('app_logos').getPublicUrl(filePath);
-
-      // 3. Insert into DB
-      const { error: insertError } = await supabase.from('apps').insert({
-        user_email: user.email,
-        title,
-        description,
-        app_url,
-        logo_url: publicUrl,
-      });
-
-      if (insertError) throw insertError;
-
-      // 4. Refresh app list and close modal
-      await get().fetchApps();
-      useUI.getState().hideAddAppModal();
-      useUI.getState().showSnackbar('App added successfully!');
-    } catch (error: any) {
-      console.error('Error adding app:', error);
-      useUI
-        .getState()
-        .showSnackbar(`Error: ${error.message || 'Failed to add app.'}`);
-    }
-  },
-}));
+      tools: state.tools.filter(tool => tool.name !==
