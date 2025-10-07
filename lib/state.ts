@@ -681,7 +681,7 @@ export const useUserSettings = create(
             ? `
 ---
 USER'S INSTALLED APPLICATIONS:
-You must be knowledgeable about the following applications that the user has added. They may ask you questions about them or ask you to interact with them.
+You have the following applications available to you and Boss Jo. You are an expert on these tools. Be prepared to not only answer questions about them but also to proactively teach Boss Jo how to use them, explain their functions, and highlight their importance and benefits for his work. For example, you can explain how Zumi's real-time voice translation can help in international meetings.
 ${apps
   .map(app => `- **${app.title}**: ${app.description || 'No description provided.'} (URL: ${app.app_url})`)
   .join('\n')}
@@ -1093,28 +1093,46 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      
-      const defaultTranslatorApp: App = {
-        id: 999999, // Use a unique ID to avoid conflicts with real apps
-        user_email: user.email,
-        title: 'Translator',
-        description: 'Translate text between many languages instantly.',
-        app_url: 'https://translate-now-539403796561.us-west1.run.app',
-        logo_url:
-          'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
-        created_at: new Date().toISOString(),
-      };
+
+      // Define the default apps that should always be present
+      const defaultApps: App[] = [
+        {
+          id: 999999, // Use a unique ID to avoid conflicts
+          user_email: user.email,
+          title: 'Translator',
+          description: 'Translate text between many languages instantly.',
+          app_url: 'https://translate-now-539403796561.us-west1.run.app',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 999998, // Another unique ID
+          user_email: user.email,
+          title: 'Zumi',
+          description:
+            'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
+          app_url: 'https://zum-ten.vercel.app/',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
+          created_at: new Date().toISOString(),
+        },
+      ];
 
       const fetchedApps = data || [];
-      const translatorExists = fetchedApps.some(
-        app => app.app_url === defaultTranslatorApp.app_url,
-      );
+      const finalApps = [...fetchedApps];
 
-      if (translatorExists) {
-        set({ apps: fetchedApps });
-      } else {
-        set({ apps: [defaultTranslatorApp, ...fetchedApps] });
-      }
+      // Add default apps if they are not already in the fetched list
+      defaultApps.forEach(defaultApp => {
+        const appExists = finalApps.some(
+          app => app.app_url === defaultApp.app_url,
+        );
+        if (!appExists) {
+          finalApps.unshift(defaultApp); // Add to the beginning
+        }
+      });
+
+      set({ apps: finalApps });
     } catch (error) {
       console.error('Error fetching apps:', error);
       useUI.getState().showSnackbar('Failed to load apps.');
