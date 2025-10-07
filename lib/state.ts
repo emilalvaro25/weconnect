@@ -1094,7 +1094,28 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      set({ apps: data || [] });
+      
+      const defaultTranslatorApp: App = {
+        id: 999999, // Use a unique ID to avoid conflicts with real apps
+        user_email: user.email,
+        title: 'Translator',
+        description: 'Translate text between many languages instantly.',
+        app_url: 'https://translate-now-539403796561.us-west1.run.app',
+        logo_url:
+          'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
+        created_at: new Date().toISOString(),
+      };
+
+      const fetchedApps = data || [];
+      const translatorExists = fetchedApps.some(
+        app => app.app_url === defaultTranslatorApp.app_url,
+      );
+
+      if (translatorExists) {
+        set({ apps: fetchedApps });
+      } else {
+        set({ apps: [defaultTranslatorApp, ...fetchedApps] });
+      }
     } catch (error) {
       console.error('Error fetching apps:', error);
       useUI.getState().showSnackbar('Failed to load apps.');
