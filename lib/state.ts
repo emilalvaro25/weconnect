@@ -1314,6 +1314,14 @@ export interface App {
   logo_url: string;
 }
 
+const defaultTranslatorApp: App = {
+  id: 'default-translator-app',
+  title: 'Translator',
+  description: 'Translate text between many languages instantly.',
+  app_url: 'https://translate-now-539403796561.us-west1.run.app',
+  logo_url: 'https://api.iconify.design/logos:google-translate.svg',
+};
+
 interface AppsState {
   apps: App[];
   isLoading: boolean;
@@ -1327,13 +1335,13 @@ interface AppsState {
 }
 
 export const useAppsStore = create<AppsState>((set, get) => ({
-  apps: [],
+  apps: [defaultTranslatorApp],
   isLoading: false,
   fetchApps: async () => {
     set({ isLoading: true });
     const { user } = useAuthStore.getState();
     if (!user?.email) {
-      set({ apps: [], isLoading: false });
+      set({ apps: [defaultTranslatorApp], isLoading: false });
       return;
     }
 
@@ -1345,16 +1353,14 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         .order('created_at', { ascending: true });
 
       if (error) throw error;
+      
+      const userApps = (data as App[]) || [];
+      set({ apps: [defaultTranslatorApp, ...userApps], isLoading: false });
 
-      if (data) {
-        set({ apps: data as App[], isLoading: false });
-      } else {
-        set({ apps: [], isLoading: false });
-      }
     } catch (error) {
       console.error('Error fetching apps:', error);
       useUI.getState().showSnackbar('Could not load apps.');
-      set({ isLoading: false });
+      set({ apps: [defaultTranslatorApp], isLoading: false });
     }
   },
   addApp: async ({ title, description, app_url, logoFile }) => {

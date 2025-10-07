@@ -2,26 +2,11 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import Modal from './Modal';
 import { useUI, useAppsStore } from '../lib/state';
-import { GoogleGenAI } from '@google/genai';
-
-// Utility function to convert a base64 string (from API) to a File object
-function base64StringToFile(
-  base64String: string,
-  filename: string,
-  mimeType: string,
-): File {
-  const byteCharacters = atob(base64String);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], { type: mimeType });
-  return new File([blob], filename, { type: mimeType });
-}
+import { LOGO_PACKET } from '../lib/logo-packet';
+import cn from 'classnames';
 
 export default function AddAppModal() {
   const { hideAddAppModal, showSnackbar } = useUI();
@@ -29,82 +14,38 @@ export default function AddAppModal() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [appUrl, setAppUrl] = useState('');
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [selectedLogoUrl, setSelectedLogoUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isGeneratingLogo, setIsGeneratingLogo] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleGenerateLogo = async () => {
-    setIsGeneratingLogo(true);
-    showSnackbar('Generating logo...');
-
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-      showSnackbar('API_KEY is not configured.');
-      setIsGeneratingLogo(false);
-      return;
-    }
-    const ai = new GoogleGenAI({ apiKey });
-
-    const prompt = `A simple, modern, flat vector icon logo for an app named "${title}". The app's purpose is: "${description}". The logo should be visually appealing, clean, and suitable for an app icon. White background.`;
-
-    try {
-      const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/png',
-          aspectRatio: '1:1',
-        },
-      });
-
-      const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-      const mimeType = 'image/png';
-      const imageUrl = `data:${mimeType};base64,${base64ImageBytes}`;
-
-      setLogoPreview(imageUrl);
-
-      const generatedFile = base64StringToFile(
-        base64ImageBytes,
-        `${title || 'logo'}_logo.png`,
-        mimeType,
-      );
-      setLogoFile(generatedFile);
-
-      showSnackbar('Logo generated successfully!');
-    } catch (error) {
-      console.error('Error generating logo:', error);
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unknown error occurred.';
-      showSnackbar(`Error generating logo: ${errorMessage}`);
-    } finally {
-      setIsGeneratingLogo(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !appUrl || !logoFile) {
-      showSnackbar('Title, URL, and Logo are required.');
+    if (!title || !appUrl || !selectedLogoUrl) {
+      showSnackbar('Title, URL, and a selected Logo are required.');
       return;
     }
     setIsLoading(true);
-    await addApp({ title, description, app_url: appUrl, logoFile });
-    setIsLoading(false);
+
+    try {
+      // Fetch the selected logo and convert it to a File object
+      const response = await fetch(selectedLogoUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch the selected logo.');
+      }
+      const blob = await response.blob();
+      // Try to get a sensible filename from the URL
+      const filename =
+        selectedLogoUrl.split('/').pop()?.split('?')[0] || 'logo.svg';
+      const logoFile = new File([blob], filename, { type: blob.type });
+
+      await addApp({ title, description, app_url: appUrl, logoFile });
+    } catch (error) {
+      console.error('Error processing logo for upload:', error);
+      showSnackbar(
+        'There was an error preparing the logo. Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -145,44 +86,22 @@ export default function AddAppModal() {
             />
           </div>
           <div className="form-field">
-            <label htmlFor="app-logo">Logo</label>
-            <div className="logo-input-container">
-              <input
-                id="app-logo"
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-              />
-              <button
-                type="button"
-                className="logo-upload-button"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {logoPreview ? (
-                  <img src={logoPreview} alt="Logo preview" />
-                ) : (
-                  <span>Select Logo</span>
-                )}
-              </button>
-              <button
-                type="button"
-                className="generate-logo-button"
-                onClick={handleGenerateLogo}
-                disabled={(!title && !description) || isGeneratingLogo}
-              >
-                {isGeneratingLogo ? (
-                  'Generating...'
-                ) : (
-                  <>
-                    Generate with AI
-                    <span className="material-symbols-outlined">
-                      auto_awesome
-                    </span>
-                  </>
-                )}
-              </button>
+            <label>Choose a Logo</label>
+            <div className="logo-selection-grid">
+              {LOGO_PACKET.map(url => (
+                <div
+                  key={url}
+                  className={cn('logo-option', {
+                    selected: selectedLogoUrl === url,
+                  })}
+                  onClick={() => setSelectedLogoUrl(url)}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedLogoUrl === url}
+                >
+                  <img src={url} alt="App logo option" />
+                </div>
+              ))}
             </div>
           </div>
           <div className="modal-actions">
@@ -196,7 +115,7 @@ export default function AddAppModal() {
             <button
               type="submit"
               className="save-button"
-              disabled={isLoading || isGeneratingLogo}
+              disabled={isLoading}
             >
               {isLoading ? 'Saving...' : 'Save App'}
             </button>
