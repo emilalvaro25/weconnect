@@ -227,6 +227,14 @@ export default function StreamingConsole() {
             >
               <div className="transcription-header">
                 <div className="transcription-source">
+                  {t.role === 'system' && (
+                    <span
+                      className="material-symbols-outlined system-icon"
+                      aria-hidden="true"
+                    >
+                      settings_ethernet
+                    </span>
+                  )}
                   {t.role === 'user'
                     ? 'You'
                     : t.role === 'agent'

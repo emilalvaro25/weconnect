@@ -682,6 +682,13 @@ button .icon {
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.system-icon {
+  font-size: 16px;
 }
 
 .transcription-timestamp {
