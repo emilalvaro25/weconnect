@@ -1247,8 +1247,17 @@ export const useLogStore = create<{
       'draw a picture',
       'create a picture',
       'draw an image',
+      'make an image',
+      'make a picture',
+      'show me a picture of',
+      'show me an image of',
     ];
-    if (generationKeywords.some(keyword => text.toLowerCase().includes(keyword))) {
+    const lowerCaseText = text.toLowerCase();
+    
+    // A specific check for prompts starting with "imagine" is a common pattern for image generation.
+    const isImaginePrompt = lowerCaseText.trim().startsWith('imagine ');
+
+    if (isImaginePrompt || generationKeywords.some(keyword => lowerCaseText.includes(keyword))) {
       addTurn({ role: 'agent', text: 'Generating image...', isFinal: false });
       try {
         const response = await ai.models.generateImages({
