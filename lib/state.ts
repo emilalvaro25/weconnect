@@ -982,17 +982,47 @@ export const useLogStore = create<{
   turns: ConversationTurn[];
   addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) => void;
   updateLastTurn: (update: Partial<ConversationTurn>) => void;
-  clearTurns: () => void;
+  clearTurns: () => Promise<void>;
   sendMessage: (
     text: string,
     newImage?: { data: string; mimeType: string } | null,
   ) => Promise<void>;
+  loadHistory: () => Promise<void>;
+  clearTurnsForLogout: () => void;
 }>((set, get) => ({
   turns: [],
   addTurn: (turn: Omit<ConversationTurn, 'timestamp'>) =>
     set(state => ({
       turns: [...state.turns, { ...turn, timestamp: new Date() }],
     })),
+  loadHistory: async () => {
+    const { user } = useAuthStore.getState();
+    if (!user?.email) {
+      set({ turns: [] }); // Clear turns if no user is logged in
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from('conversation_history')
+        .select('turn_data, created_at')
+        .eq('user_email', user.email)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+      if (data) {
+        const loadedTurns: ConversationTurn[] = data.map(record => ({
+          ...(record.turn_data as any),
+          timestamp: new Date(record.created_at),
+        }));
+        set({ turns: loadedTurns });
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      useUI.getState().showSnackbar('Could not load chat history.');
+    }
+  },
   sendMessage: async (
     text: string,
     newImage?: { data: string; mimeType: string } | null,
@@ -1186,17 +1216,21 @@ export const useLogStore = create<{
       if (lastTurn.isFinal) {
         const { user } = useAuthStore.getState();
         if (user?.email) {
+          // Exclude complex/unnecessary fields and the timestamp before saving
+          const {
+            timestamp,
+            toolUseRequest,
+            toolUseResponse,
+            groundingChunks,
+            ...turnToSave
+          } = lastTurn;
+
           // This is fire-and-forget to not block the UI
           supabase
             .from('conversation_history')
             .insert({
               user_email: user.email,
-              turn_data: {
-                // Storing the whole turn object
-                role: lastTurn.role,
-                text: lastTurn.text,
-                timestamp: lastTurn.timestamp,
-              },
+              turn_data: turnToSave,
             })
             .then(({ error }) => {
               if (error)
@@ -1208,5 +1242,25 @@ export const useLogStore = create<{
       return { turns: newTurns };
     });
   },
-  clearTurns: () => set({ turns: [] }),
+  clearTurns: async () => {
+    if (window.confirm('Are you sure you want to start a new chat? This will delete your current conversation history.')) {
+      set({ turns: [] });
+      const { user } = useAuthStore.getState();
+      if (!user?.email) {
+        return;
+      }
+      const { error } = await supabase
+        .from('conversation_history')
+        .delete()
+        .eq('user_email', user.email);
+
+      if (error) {
+        console.error('Error clearing history:', error);
+        useUI.getState().showSnackbar('Failed to clear chat history.');
+      } else {
+        useUI.getState().showSnackbar('New chat started.');
+      }
+    }
+  },
+  clearTurnsForLogout: () => set({ turns: [] }),
 }));

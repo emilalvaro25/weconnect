@@ -29,7 +29,7 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Auth from './components/Auth';
 import { LiveAPIProvider } from './contexts/LiveAPIContext';
-import { useUI, useUserSettings, useAuthStore } from './lib/state';
+import { useUI, useUserSettings, useAuthStore, useLogStore } from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
 import { supabase } from './lib/supabase';
@@ -48,12 +48,14 @@ function App() {
   const { isVoiceCallActive, isWhatsAppModalOpen } = useUI();
   const { session, loading, setSession } = useAuthStore();
   const { loadUserData, resetToDefaults } = useUserSettings();
+  const { loadHistory, clearTurnsForLogout } = useLogStore();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user?.email) {
         loadUserData(session.user.email);
+        loadHistory();
       }
     });
 
@@ -63,14 +65,16 @@ function App() {
       setSession(session);
       if (session?.user?.email) {
         loadUserData(session.user.email);
+        loadHistory();
       } else {
         // User logged out, reset settings
         resetToDefaults();
+        clearTurnsForLogout();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setSession, loadUserData, resetToDefaults]);
+  }, [setSession, loadUserData, resetToDefaults, loadHistory, clearTurnsForLogout]);
 
   if (loading) {
     return (

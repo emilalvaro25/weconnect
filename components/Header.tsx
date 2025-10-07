@@ -20,7 +20,7 @@ export default function Header() {
       <h1 className="app-title">Kithai AI</h1>
       <button
         className="icon-button"
-        aria-label="Clear chat"
+        aria-label="New chat"
         onClick={clearTurns}
       >
         <span className="material-symbols-outlined">refresh</span>
