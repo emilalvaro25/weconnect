@@ -1107,6 +1107,17 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       // Define the default apps that should always be present
       const defaultApps: App[] = [
         {
+          id: 999997, // Another unique ID
+          user_email: user.email,
+          title: 'Movie App',
+          description:
+            'A free movie streaming application for all users.',
+          app_url: 'https://panyero.website/movie/index.html',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-33-32.png',
+          created_at: new Date().toISOString(),
+        },
+        {
           id: 999999, // Use a unique ID to avoid conflicts
           user_email: user.email,
           title: 'Translator',
