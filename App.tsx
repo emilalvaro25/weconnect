@@ -7,8 +7,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may
- obtain a copy of the License at
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -34,8 +33,6 @@ import { useUI, useUserSettings, useAuthStore, useLogStore } from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
 import { supabase } from './lib/supabase';
-import AddAppModal from './components/AddAppModal';
-import AppViewer from './components/AppViewer';
 
 // Fix: Use process.env.API_KEY per coding guidelines.
 const API_KEY = process.env.API_KEY as string;
@@ -48,12 +45,7 @@ if (typeof API_KEY !== 'string') {
  * Manages video streaming state and provides controls for webcam/screen capture.
  */
 function App() {
-  const {
-    isVoiceCallActive,
-    isWhatsAppModalOpen,
-    isAddAppModalOpen,
-    viewingAppUrl,
-  } = useUI();
+  const { isVoiceCallActive, isWhatsAppModalOpen } = useUI();
   const { session, loading, setSession } = useAuthStore();
   const { loadUserData, resetToDefaults } = useUserSettings();
   const { loadHistory, clearTurnsForLogout } = useLogStore();
@@ -82,13 +74,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [
-    setSession,
-    loadUserData,
-    resetToDefaults,
-    loadHistory,
-    clearTurnsForLogout,
-  ]);
+  }, [setSession, loadUserData, resetToDefaults, loadHistory, clearTurnsForLogout]);
 
   if (loading) {
     return (
@@ -120,13 +106,7 @@ function App() {
             even when not visible. Visibility is controlled by CSS. */}
         <VoiceCall />
         {isWhatsAppModalOpen && <WhatsAppModal />}
-        {isAddAppModalOpen && <AddAppModal />}
-        {viewingAppUrl && <AppViewer />}
-        <div
-          className={cn('main-ui-wrapper', {
-            hidden: isVoiceCallActive || !!viewingAppUrl,
-          })}
-        >
+        <div className={cn('main-ui-wrapper', { 'hidden': isVoiceCallActive })}>
           <Header />
           <Sidebar />
           <div className="main-container">
