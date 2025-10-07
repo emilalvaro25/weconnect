@@ -25,7 +25,6 @@ import { AudioStreamer } from '../../lib/audio-streamer';
 import { audioContext } from '../../lib/utils';
 import VolMeterWorket from '../../lib/worklets/vol-meter';
 import { useLogStore, useSettings, useUserSettings, useWhatsAppIntegrationStore, useAuthStore } from '@/lib/state';
-import { AudioEffects } from '@/lib/audio-effects';
 
 export type UseLiveApiResults = {
   client: GenAILiveClient;
@@ -40,7 +39,6 @@ export type UseLiveApiResults = {
   volume: number;
   isSpeakerMuted: boolean;
   toggleSpeakerMute: () => void;
-  audioEffects: AudioEffects | null;
 };
 
 async function handleSendEmail(
@@ -371,7 +369,6 @@ export function useLiveApi({
   );
 
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
-  const audioEffectsRef = useRef<AudioEffects | null>(null);
 
   const [volume, setVolume] = useState(0);
   const [status, setStatus] =
@@ -392,8 +389,7 @@ export function useLiveApi({
   useEffect(() => {
     if (!audioStreamerRef.current) {
       audioContext({ id: 'audio-out' }).then((audioCtx: AudioContext) => {
-        audioEffectsRef.current = new AudioEffects(audioCtx);
-        audioStreamerRef.current = new AudioStreamer(audioCtx, audioEffectsRef.current);
+        audioStreamerRef.current = new AudioStreamer(audioCtx);
         audioStreamerRef.current
           .addWorklet<any>('vumeter-out', VolMeterWorket, (ev: any) => {
             setVolume(ev.data.volume);
@@ -566,6 +562,5 @@ export function useLiveApi({
     volume,
     isSpeakerMuted,
     toggleSpeakerMute,
-    audioEffects: audioEffectsRef.current,
   };
 }

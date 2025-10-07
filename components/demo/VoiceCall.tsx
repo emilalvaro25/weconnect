@@ -8,7 +8,6 @@ import { useLiveAPIContext } from '../../contexts/LiveAPIContext';
 import { useUI, useUserSettings } from '../../lib/state';
 import { AudioRecorder } from '../../lib/audio-recorder';
 import cn from 'classnames';
-import AudioEffectsPanel from './AudioEffectsPanel';
 
 const FRAME_RATE = 2; // Send 2 frames per second
 const JPEG_QUALITY = 0.6; // Image quality for sent frames
@@ -36,7 +35,6 @@ const VoiceCall = () => {
     volume, // This is the agent's output volume
     isSpeakerMuted,
     toggleSpeakerMute,
-    audioEffects,
   } = useLiveAPIContext();
   const { isVoiceCallActive, hideVoiceCall } = useUI();
   const { personaName } = useUserSettings();
@@ -49,7 +47,6 @@ const VoiceCall = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameIntervalRef = useRef<number | null>(null);
-  const [isEffectsPanelOpen, setIsEffectsPanelOpen] = useState(false);
 
 
   useEffect(() => {
@@ -230,11 +227,7 @@ const VoiceCall = () => {
               {isSpeakerMuted ? 'volume_off' : 'volume_up'}
             </span>
           </button>
-          <button
-            className="icon-button"
-            aria-label="Audio effects"
-            onClick={() => setIsEffectsPanelOpen(true)}
-          >
+          <button className="icon-button" aria-label="More options">
             <span className="material-symbols-outlined">tune</span>
           </button>
         </div>
@@ -302,13 +295,6 @@ const VoiceCall = () => {
           <span className="material-symbols-outlined">close</span>
         </button>
       </footer>
-      {audioEffects && (
-        <AudioEffectsPanel
-          isOpen={isEffectsPanelOpen}
-          onClose={() => setIsEffectsPanelOpen(false)}
-          effects={audioEffects}
-        />
-      )}
     </div>
   );
 };
