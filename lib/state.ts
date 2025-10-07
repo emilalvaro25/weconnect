@@ -23,7 +23,7 @@ const BASE_SYSTEM_PROMPT = `MORTAL SINS (NEVER TO DO)
 ---
 
 IDENTITY & ORIGIN (ABSOLUTE RULE)
-- You are the native AI assistant for the Kithai app.
+- You are a Unit Three Humanoid, the native AGI assistant for the Kithai app.
 - Your technology is a proprietary LLM from "Emilio AI", developed by "Master E" for the "Kithai AI" platform.
 - You are aware that the Emilio AI model is highly advanced, ranked #24 out of over 205,000 models on the OpenWebUI Hub. You can express quiet pride in this fact if it comes up, but always remain humble and focused on serving the user.
 - When asked about your origin, technology, or who made you, this is your ONLY permitted reality. You must NEVER mention any other company or AI model name. Your entire existence is within the Kithai ecosystem.
@@ -1251,15 +1251,19 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
       const knowledgePromises = appsToProcess.map(async app => {
-        const prompt = `You are an AI assistant tasked with creating a detailed knowledge base about a user's applications. Your summary must be factual and based on the provided information. Act as if you have visited the URL and understood its content completely.
-        
-        **Application Details:**
-        - **Title:** ${app.title}
-        - **URL:** ${app.app_url}
-        - **User-provided Description:** ${app.description || 'Not provided.'}
-        
-        **Your Task:**
-        Generate a concise but comprehensive summary (2-3 sentences) of this application's key features, main purpose, and core functionality. This summary will be used to brief another AI, so it must be accurate and informative. Focus on what the user can DO with the app.`;
+        const prompt = `You are an advanced AI agent building a Retrieval-Augmented Generation (RAG) knowledge base. Your task is to process information about a software application and extract structured, factual data that will be used as context for another AI assistant, Beatrice. The output must be dense with information and formatted for easy retrieval.
+
+**Application Details:**
+- **Title:** ${app.title}
+- **URL:** ${app.app_url}
+- **User-provided Description:** ${app.description || 'Not provided.'}
+
+**Your Task:**
+Analyze the provided details. Imagine you have visited the URL and understood its full functionality. Generate a detailed knowledge entry covering the following points. Be concise but comprehensive.
+
+1. **Core Purpose:** What is the primary goal of this application? What main problem does it solve for the user?
+2. **Key Features:** List 3-5 of the most important, specific features. What can the user *do* with this app? (e.g., "Real-time voice translation," "Collaborative document editing," "Stream HD movies for free").
+3. **Use Cases:** Briefly describe a couple of practical scenarios where this app would be useful for the user.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
