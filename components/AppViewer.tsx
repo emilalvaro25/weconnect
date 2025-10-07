@@ -27,7 +27,7 @@ export default function AppViewer() {
         src={viewingAppUrl}
         className="app-viewer-iframe"
         title="App Viewer"
-        allow="camera; microphone; autoplay; display-capture; fullscreen; clipboard-write; clipboard-read; speaker-selection;"
+        allow="camera; microphone; autoplay; display-capture; fullscreen; clipboard-write; clipboard-read; speaker-selection; encrypted-media; picture-in-picture; geolocation; payment; web-share;"
       />
     </div>
   );
