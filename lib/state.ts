@@ -1342,7 +1342,7 @@ interface AppsState {
   }) => Promise<void>;
 }
 
-const defaultApps = [defaultKithaiApp, defaultTranslatorApp];
+const defaultApps = [defaultTranslatorApp, defaultKithaiApp];
 
 export const useAppsStore = create<AppsState>((set, get) => ({
   apps: defaultApps,
