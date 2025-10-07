@@ -1107,6 +1107,16 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       // Define the default apps that should always be present
       const defaultApps: App[] = [
         {
+          id: 999996, // New unique ID
+          user_email: user.email,
+          title: 'Bots R Here',
+          description: 'Human realistic avatar.',
+          app_url: 'https://botsrhere.online/index.html',
+          logo_url:
+            'https://i0.wp.com/bots-r-here.com/wp-content/uploads/2024/12/Ontwerp-zonder-titel.png?resize=300%2C300',
+          created_at: new Date().toISOString(),
+        },
+        {
           id: 999997, // Another unique ID
           user_email: user.email,
           title: 'Movie App',
