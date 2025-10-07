@@ -1,6 +1,6 @@
 {
   "name": "Kithai AI",
-  "description": "Your personal AI assistant, powered by Gemini. Engage in natural voice conversations, integrate with your favorite apps, and customize your AI's persona.",
+  "description": "Your personal AI assistant, powered by Emilio AI. Engage in natural voice conversations, integrate with your favorite apps, and customize your AI's persona.",
   "requestFramePermissions": [
     "microphone",
     "camera"
