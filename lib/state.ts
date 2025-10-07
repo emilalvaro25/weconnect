@@ -682,20 +682,26 @@ export const useUserSettings = create(
       },
       getSystemPrompt: () => {
         const { rolesAndDescription, memories } = get();
-        const { apps } = useAppsStore.getState(); // Get apps from the apps store
+        const { apps, knowledgeBase } = useAppsStore.getState();
       
         const appsSection =
           apps.length > 0
             ? `
 ---
 USER'S INSTALLED APPLICATIONS (YOUR ECOSYSTEM):
-This is the exclusive list of applications available to you and Boss Jo. You are an expert on these tools. When discussing applications, recommending tools, or providing solutions, you MUST exclusively refer to the apps from this list. Do not mention or suggest any applications that are not part of this ecosystem.
+This is the exclusive list of applications available to you and Boss Jo. You are an expert on these tools. Your knowledge comes from a deep analysis of each application's URL and functionality, as if you have personally "hovered" or visited and used each one. You MUST know everything about them. When discussing applications, recommending tools, or providing solutions, you MUST exclusively refer to the apps from this list and use your detailed knowledge.
 
-Be prepared to not only answer questions about them but also to proactively teach Boss Jo how to use them, explain their functions, and highlight their importance and benefits for his work. You can also launch any of these apps for him. When he asks you to open or launch an app, use the 'launch_app' function with the app's exact title. For example, you can explain how Zumi's real-time voice translation can help in international meetings.
+Be prepared to not only answer questions about them but also to proactively teach Boss Jo how to use them, explain their functions, and highlight their importance and benefits for his work. You can also launch any of these apps for him. When he asks you to open or launch an app, use the 'launch_app' function with the app's exact title.
 
-Available Apps:
+Available Apps & Your In-Depth Knowledge:
 ${apps
-  .map(app => `- **${app.title}**: ${app.description || 'No description provided.'}`)
+  .map(app => {
+    const detailedKnowledge =
+      knowledgeBase.get(app.id) ||
+      app.description ||
+      'No description provided.';
+    return `- **${app.title}**: ${detailedKnowledge}`;
+  })
   .join('\n')}
 ---
 `
@@ -1079,6 +1085,7 @@ export interface App {
 interface AppsState {
   apps: App[];
   isLoading: boolean;
+  knowledgeBase: Map<number, string>; // app.id -> detailed description
   fetchApps: () => Promise<void>;
   addApp: (appData: {
     title: string;
@@ -1086,11 +1093,13 @@ interface AppsState {
     app_url: string;
     logoFile: File;
   }) => Promise<void>;
+  generateAndStoreAppKnowledge: () => Promise<void>;
 }
 
 export const useAppsStore = create<AppsState>((set, get) => ({
   apps: [],
   isLoading: false,
+  knowledgeBase: new Map(),
   fetchApps: async () => {
     const { user } = useAuthStore.getState();
     if (!user?.email) {
@@ -1228,6 +1237,52 @@ export const useAppsStore = create<AppsState>((set, get) => ({
     } catch (error: any) {
       console.error('Error adding app:', error);
       showSnackbar(error.message || 'An unexpected error occurred.');
+    }
+  },
+  generateAndStoreAppKnowledge: async () => {
+    const { apps, knowledgeBase } = get();
+    const appsToProcess = apps.filter(app => !knowledgeBase.has(app.id));
+
+    if (appsToProcess.length === 0) {
+      return; // No new apps to process
+    }
+
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+
+      const knowledgePromises = appsToProcess.map(async app => {
+        const prompt = `You are an AI assistant tasked with creating a detailed knowledge base about a user's applications. Your summary must be factual and based on the provided information. Act as if you have visited the URL and understood its content completely.
+        
+        **Application Details:**
+        - **Title:** ${app.title}
+        - **URL:** ${app.app_url}
+        - **User-provided Description:** ${app.description || 'Not provided.'}
+        
+        **Your Task:**
+        Generate a concise but comprehensive summary (2-3 sentences) of this application's key features, main purpose, and core functionality. This summary will be used to brief another AI, so it must be accurate and informative. Focus on what the user can DO with the app.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+        });
+
+        return {
+          id: app.id,
+          knowledge: response.text.trim(),
+        };
+      });
+
+      const results = await Promise.all(knowledgePromises);
+
+      const newKnowledge = new Map(knowledgeBase);
+      results.forEach(result => {
+        newKnowledge.set(result.id, result.knowledge);
+      });
+
+      set({ knowledgeBase: newKnowledge });
+    } catch (error) {
+      console.error('Failed to generate app knowledge base:', error);
+      // Fallback will use the basic description, so no need for a snackbar
     }
   },
 }));

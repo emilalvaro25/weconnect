@@ -66,7 +66,7 @@ function App() {
     turns,
     addTurn,
   } = useLogStore();
-  const { apps, fetchApps } = useAppsStore();
+  const { apps, fetchApps, generateAndStoreAppKnowledge } = useAppsStore();
   const { seenAppIds, addSeenAppIds, clearSeenApps } = useSeenAppsStore();
 
   useEffect(() => {
@@ -112,6 +112,12 @@ function App() {
     fetchApps,
     clearSeenApps,
   ]);
+
+  useEffect(() => {
+    if (apps.length > 0) {
+      generateAndStoreAppKnowledge();
+    }
+  }, [apps, generateAndStoreAppKnowledge]);
 
   useEffect(() => {
     // This effect runs to check for and introduce new apps.
