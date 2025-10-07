@@ -22,6 +22,7 @@ import {
   createWorketFromSrc,
   registeredWorklets,
 } from './audioworklet-registry';
+import { AudioEffects } from './audio-effects';
 
 export class AudioStreamer {
   private sampleRate: number = 24000;
@@ -41,17 +42,27 @@ export class AudioStreamer {
 
   public onComplete = () => {};
 
-  constructor(public context: AudioContext) {
+  constructor(
+    public context: AudioContext,
+    private effects?: AudioEffects,
+  ) {
     this.gainNode = this.context.createGain();
     this.source = this.context.createBufferSource();
-    this.gainNode.connect(this.context.destination);
+
+    if (this.effects) {
+      this.gainNode.connect(this.effects.input);
+      this.effects.output.connect(this.context.destination);
+    } else {
+      this.gainNode.connect(this.context.destination);
+    }
+
     this.addPCM16 = this.addPCM16.bind(this);
   }
 
   async addWorklet<T extends (d: any) => void>(
     workletName: string,
     workletSrc: string,
-    handler: T
+    handler: T,
   ): Promise<this> {
     let workletsRecord = registeredWorklets.get(this.context);
     if (workletsRecord && workletsRecord[workletName]) {
@@ -132,7 +143,7 @@ export class AudioStreamer {
     const audioBuffer = this.context.createBuffer(
       1,
       audioData.length,
-      this.sampleRate
+      this.sampleRate,
     );
     audioBuffer.getChannelData(0).set(audioData);
     return audioBuffer;
@@ -180,6 +191,7 @@ export class AudioStreamer {
                 handler.call(node.port, ev);
               });
             };
+            // Effects are connected separately, so worklets should connect to the main destination
             node.connect(this.context.destination);
           }
         });
@@ -211,14 +223,17 @@ export class AudioStreamer {
         (this.scheduledTime - this.context.currentTime) * 1000;
       setTimeout(
         () => this.scheduleNextBuffer(),
-        Math.max(0, nextCheckTime - 50)
+        Math.max(0, nextCheckTime - 50),
       );
     }
   }
 
   public setMuted(muted: boolean) {
     if (this.context.state === 'running') {
-        this.gainNode.gain.setValueAtTime(muted ? 0 : 1, this.context.currentTime);
+      this.gainNode.gain.setValueAtTime(
+        muted ? 0 : 1,
+        this.context.currentTime,
+      );
     }
   }
 
@@ -235,13 +250,17 @@ export class AudioStreamer {
 
     this.gainNode.gain.linearRampToValueAtTime(
       0,
-      this.context.currentTime + 0.1
+      this.context.currentTime + 0.1,
     );
 
     setTimeout(() => {
       this.gainNode.disconnect();
       this.gainNode = this.context.createGain();
-      this.gainNode.connect(this.context.destination);
+      if (this.effects) {
+        this.gainNode.connect(this.effects.input);
+      } else {
+        this.gainNode.connect(this.context.destination);
+      }
     }, 200);
   }
 
@@ -259,17 +278,3 @@ export class AudioStreamer {
     this.onComplete();
   }
 }
-
-// // Usage example:
-// const audioStreamer = new AudioStreamer();
-//
-// // In your streaming code:
-// function handleChunk(chunk: Uint8Array) {
-//   audioStreamer.handleChunk(chunk);
-// }
-//
-// // To start playing (call this in response to a user interaction)
-// await audioStreamer.resume();
-//
-// // To stop playing
-// // audioStreamer.stop();
