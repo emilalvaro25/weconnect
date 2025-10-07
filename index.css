@@ -931,6 +931,12 @@ button .icon {
   background-color: var(--Neutral-50);
 }
 
+.add-app-modal .logo-input-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
 .add-app-modal .logo-upload-button {
     width: 100px;
     height: 100px;
@@ -945,6 +951,7 @@ button .icon {
     font-size: 14px;
     transition: border-color 0.2s;
     padding: 4px;
+    flex-shrink: 0;
 }
 .add-app-modal .logo-upload-button:hover {
     border-color: var(--border-color);
@@ -954,6 +961,35 @@ button .icon {
     height: 100%;
     object-fit: cover;
     border-radius: 4px;
+}
+
+.add-app-modal .generate-logo-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s;
+    background-image: var(--button-gradient);
+    color: var(--sidebar-bg);
+    height: 52px;
+}
+
+.add-app-modal .generate-logo-button:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.add-app-modal .generate-logo-button:disabled {
+    background-image: none;
+    background-color: var(--Neutral-30);
+    cursor: not-allowed;
+    color: var(--text-secondary);
+}
+
+.add-app-modal .generate-logo-button .material-symbols-outlined {
+    font-size: 20px;
 }
 
 
@@ -2163,6 +2199,26 @@ form button:first-of-type {
 }
 
 /* Apps Tab */
+.apps-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.apps-tab-header .sidebar-section-title {
+  margin-bottom: 0;
+}
+
+.apps-tab-header .icon-button {
+  color: var(--text-secondary);
+}
+
+.apps-tab-header .icon-button:hover {
+  color: var(--text-primary);
+  background-color: var(--Neutral-15);
+}
+
 .app-card-list {
   display: grid;
   grid-template-columns: 1fr;

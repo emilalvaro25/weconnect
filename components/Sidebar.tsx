@@ -18,6 +18,7 @@ import { AVAILABLE_VOICES_MAP } from '@/lib/constants';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import { useState, useEffect } from 'react';
 import ToolEditorModal from './ToolEditorModal';
+import AppsTab from './sidebar/AppsTab';
 
 export default function Sidebar() {
   const { isSidebarOpen, toggleSidebar, showWhatsAppModal } = useUI();
@@ -38,7 +39,7 @@ export default function Sidebar() {
   const whatsAppIntegration = useWhatsAppIntegrationStore();
 
   const [editingTool, setEditingTool] = useState<FunctionCall | null>(null);
-  const [activeTab, setActiveTab] = useState('server');
+  const [activeTab, setActiveTab] = useState('apps');
 
   // Local state for persona editing
   const [localPersonaName, setLocalPersonaName] = useState(personaName);
@@ -79,14 +80,14 @@ export default function Sidebar() {
         </div>
 
         <div className="sidebar-tabs">
-          <button
-            className={c('sidebar-tab', { active: activeTab === 'server' })}
-            onClick={() => setActiveTab('server')}
-            aria-controls="server-settings-panel"
-            aria-selected={activeTab === 'server'}
+           <button
+            className={c('sidebar-tab', { active: activeTab === 'apps' })}
+            onClick={() => setActiveTab('apps')}
+            aria-controls="apps-panel"
+            aria-selected={activeTab === 'apps'}
             role="tab"
           >
-            Server Settings
+            Apps
           </button>
           <button
             className={c('sidebar-tab', { active: activeTab === 'user' })}
@@ -97,9 +98,28 @@ export default function Sidebar() {
           >
             User Settings
           </button>
+          <button
+            className={c('sidebar-tab', { active: activeTab === 'server' })}
+            onClick={() => setActiveTab('server')}
+            aria-controls="server-settings-panel"
+            aria-selected={activeTab === 'server'}
+            role="tab"
+          >
+            Server Settings
+          </button>
         </div>
 
         <div className="sidebar-content">
+          {activeTab === 'apps' && (
+            <div
+              id="apps-panel"
+              className="tab-panel"
+              role="tabpanel"
+              aria-labelledby="apps-tab"
+            >
+              <AppsTab />
+            </div>
+          )}
           {activeTab === 'server' && (
             <div
               id="server-settings-panel"
