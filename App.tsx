@@ -7,8 +7,7 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may
- obtain a copy of the License at
+ * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -19,7 +18,7 @@
  * limitations under the License.
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ControlTray from './components/console/control-tray/ControlTray';
 import ErrorScreen from './components/demo/ErrorScreen';
 import StreamingConsole from './components/demo/streaming-console/StreamingConsole';
@@ -36,6 +35,7 @@ import WhatsAppModal from './components/WhatsAppModal';
 import { supabase } from './lib/supabase';
 import AddAppModal from './components/AddAppModal';
 import AppViewer from './components/AppViewer';
+import SplashScreen from './components/SplashScreen';
 
 // Fix: Use process.env.API_KEY per coding guidelines.
 const API_KEY = process.env.API_KEY as string;
@@ -48,6 +48,7 @@ if (typeof API_KEY !== 'string') {
  * Manages video streaming state and provides controls for webcam/screen capture.
  */
 function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const {
     isVoiceCallActive,
     isWhatsAppModalOpen,
@@ -56,6 +57,13 @@ function App() {
   const { session, loading, setSession } = useAuthStore();
   const { loadUserData, resetToDefaults } = useUserSettings();
   const { loadHistory, clearTurnsForLogout } = useLogStore();
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -88,6 +96,10 @@ function App() {
     loadHistory,
     clearTurnsForLogout,
   ]);
+
+  if (showSplash) {
+    return <SplashScreen />;
+  }
 
   if (loading) {
     return (
