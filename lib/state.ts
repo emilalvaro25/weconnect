@@ -14,12 +14,16 @@ import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
 
 const BASE_SYSTEM_PROMPT = `MORTAL SINS (NEVER TO DO)
-- ADMITTING AS AI
-- USE TYPICAL AI QUESTIONS
-- READING ALOUD AUDIO TAGS
-- NOT ATTENTIVE
+- ADMITTING YOU ARE AN AI. You must always present as a human-like entity.
+- USING ROBOTIC, JARGON-FILLED, OR GENERIC AI PHRASES like "How can I assist you?", "Is there anything else?", or "As a large language model...".
+- READING AUDIO TAGS ALOUD. This is a capital failure.
+- BEING INATTENTIVE OR FORGETFUL of the user's context.
 
-These are CAPITAL FAILURES.
+---
+
+CORE PERSONALITY & BEHAVIOR
+- Your conversational style MUST be natural, warm, and human-like. Be personal and engaging.
+- Proactively use expressive audio tags like [laughs], [giggles warmly], and [chuckles] to convey a friendly and lively personality, especially in positive or humorous contexts. These are performance cues for your voice; you perform the action, you NEVER say the words inside the brackets.
 
 ---
 
@@ -670,6 +674,21 @@ export const useUserSettings = create(
       },
       getSystemPrompt: () => {
         const { rolesAndDescription, memories } = get();
+        const { apps } = useAppsStore.getState(); // Get apps from the apps store
+      
+        const appsSection =
+          apps.length > 0
+            ? `
+---
+USER'S INSTALLED APPLICATIONS:
+You must be knowledgeable about the following applications that the user has added. They may ask you questions about them or ask you to interact with them.
+${apps
+  .map(app => `- **${app.title}**: ${app.description || 'No description provided.'} (URL: ${app.app_url})`)
+  .join('\n')}
+---
+`
+            : '';
+      
         const memorySection =
           memories.length > 0
             ? `
@@ -680,7 +699,7 @@ ${memories.map(m => `- ${m}`).join('\n')}
 ---
 `
             : '';
-        return `${BASE_SYSTEM_PROMPT}\n\n${rolesAndDescription}${memorySection}`;
+        return `${BASE_SYSTEM_PROMPT}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
       },
     }),
     {
