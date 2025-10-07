@@ -5,12 +5,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { DEFAULT_LIVE_API_MODEL, DEFAULT_VOICE } from './constants';
+// FIX: Add missing import for `GoogleGenAI`.
 import {
-  FunctionResponse,
   FunctionResponseScheduling,
   GoogleGenAI,
-  LiveServerToolCall,
-  Modality,
 } from '@google/genai';
 import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
@@ -994,4 +992,293 @@ export const useTools = create<{
     }),
   removeTool: (toolName: string) =>
     set(state => ({
-      tools: state.tools.filter(tool => tool.name !==
+      tools: state.tools.filter(tool => tool.name !== toolName),
+    })),
+  updateTool: (oldName: string, updatedTool: FunctionCall) =>
+    set(state => ({
+      tools: state.tools.map(tool =>
+        tool.name === oldName ? updatedTool : tool,
+      ),
+    })),
+}));
+
+/**
+ * Apps
+ */
+export interface App {
+  id: number;
+  user_email: string;
+  title: string;
+  description?: string;
+  app_url: string;
+  logo_url: string;
+  created_at: string;
+}
+
+interface AppsState {
+  apps: App[];
+  isLoading: boolean;
+  fetchApps: () => Promise<void>;
+  addApp: (appData: {
+    title: string;
+    description?: string;
+    app_url: string;
+    logoFile: File;
+  }) => Promise<void>;
+}
+
+export const useAppsStore = create<AppsState>((set, get) => ({
+  apps: [],
+  isLoading: false,
+  fetchApps: async () => {
+    const { user } = useAuthStore.getState();
+    if (!user?.email) {
+      console.warn('Cannot fetch apps, user is not connected.');
+      return;
+    }
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('apps')
+        .select('*')
+        .eq('user_email', user.email)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      set({ apps: data || [] });
+    } catch (error) {
+      console.error('Error fetching apps:', error);
+      useUI.getState().showSnackbar('Failed to load apps.');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  addApp: async ({ title, description, app_url, logoFile }) => {
+    const { user } = useAuthStore.getState();
+    const { showSnackbar, hideAddAppModal } = useUI.getState();
+    if (!user?.email) {
+      console.warn('Cannot add app, user is not connected.');
+      showSnackbar('You must be logged in to add an app.');
+      return;
+    }
+
+    try {
+      // 1. Upload logo to Supabase Storage
+      const fileExt = logoFile.name.split('.').pop();
+      const filePath = `${user.id}/${new Date().getTime()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('app_logos')
+        .upload(filePath, logoFile);
+
+      if (uploadError) {
+        throw new Error(`Logo upload failed: ${uploadError.message}`);
+      }
+
+      // 2. Get public URL for the uploaded logo
+      const { data: urlData } = supabase.storage
+        .from('app_logos')
+        .getPublicUrl(filePath);
+
+      if (!urlData) {
+        throw new Error('Could not get public URL for the logo.');
+      }
+      const logo_url = urlData.publicUrl;
+
+      // 3. Insert app metadata into the 'apps' table
+      const { data: newApp, error: insertError } = await supabase
+        .from('apps')
+        .insert({
+          user_email: user.email,
+          title,
+          description,
+          app_url,
+          logo_url,
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        throw new Error(`Failed to save app: ${insertError.message}`);
+      }
+      
+      // 4. Update local state
+      set(state => ({ apps: [...state.apps, newApp] }));
+      showSnackbar('App added successfully!');
+      hideAddAppModal();
+    } catch (error: any) {
+      console.error('Error adding app:', error);
+      showSnackbar(error.message || 'An unexpected error occurred.');
+    }
+  },
+}));
+
+/**
+ * Log
+ */
+export interface ConversationTurn {
+  role: 'user' | 'agent' | 'system';
+  text: string;
+  isFinal: boolean;
+  timestamp: Date;
+  image?: string; // base64 data URL
+  groundingChunks?: any[];
+}
+
+interface LogState {
+  turns: ConversationTurn[];
+  history: ConversationTurn[][];
+  addTurn: (turnData: Omit<ConversationTurn, 'timestamp'>) => void;
+  updateLastTurn: (updateData: Partial<ConversationTurn>) => void;
+  clearTurns: () => void;
+  clearTurnsForLogout: () => void;
+  loadHistory: () => Promise<void>;
+  sendMessage: (
+    text: string,
+    image?: { data: string; mimeType: string } | null,
+  ) => Promise<void>;
+}
+
+export const useLogStore = create<LogState>((set, get) => ({
+  turns: [],
+  history: [],
+  addTurn: turnData => {
+    const newTurn: ConversationTurn = {
+      ...turnData,
+      timestamp: new Date(),
+    };
+    set(state => ({ turns: [...state.turns, newTurn] }));
+  },
+  updateLastTurn: updateData => {
+    set(state => {
+      if (state.turns.length === 0) return state;
+      const newTurns = [...state.turns];
+      const lastTurnIndex = newTurns.length - 1;
+      newTurns[lastTurnIndex] = { ...newTurns[lastTurnIndex], ...updateData };
+      return { turns: newTurns };
+    });
+  },
+  clearTurns: () => {
+    const currentTurns = get().turns;
+    if (currentTurns.length > 0) {
+      set(state => ({ history: [currentTurns, ...state.history], turns: [] }));
+    }
+  },
+  clearTurnsForLogout: () => {
+    set({ turns: [], history: [] });
+  },
+  loadHistory: async () => {
+    // Placeholder for loading from persistent storage if needed
+  },
+  sendMessage: async (text, image = null) => {
+    const { addTurn } = get();
+    const { editingImage, setEditingImage } = useUI.getState();
+
+    let imageUrl = '';
+    let finalImage = image || editingImage;
+
+    if (finalImage) {
+      imageUrl = `data:${finalImage.mimeType};base64,${finalImage.data}`;
+    }
+
+    addTurn({
+      role: 'user',
+      text,
+      isFinal: true,
+      image: imageUrl || undefined,
+    });
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+
+    try {
+      let response;
+      const contents: any = { parts: [{ text }] };
+      let model = 'gemini-2.5-flash';
+
+      if (finalImage) {
+        contents.parts.unshift({
+          inlineData: {
+            mimeType: finalImage.mimeType,
+            data: finalImage.data,
+          },
+        });
+        if (editingImage) {
+          model = 'gemini-2.5-flash-image';
+        }
+      }
+
+      const isImageCreationPrompt = text
+        .toLowerCase()
+        .startsWith('create an image');
+      if (isImageCreationPrompt && !finalImage) {
+        response = await ai.models.generateImages({
+          model: 'imagen-4.0-generate-001',
+          prompt: text,
+          config: {
+            numberOfImages: 1,
+            outputMimeType: 'image/jpeg',
+            aspectRatio: '1:1',
+          },
+        });
+
+        const base64ImageBytes: string =
+          response.generatedImages[0].image.imageBytes;
+        const generatedImageUrl = `data:image/jpeg;base64,${base64ImageBytes}`;
+        addTurn({
+          role: 'agent',
+          text: 'Here is the image you requested.',
+          isFinal: true,
+          image: generatedImageUrl,
+        });
+      } else {
+        const genConfig: any = {
+          model,
+          contents,
+        };
+
+        if (model === 'gemini-2.5-flash-image') {
+          genConfig.config = {
+            responseModalities: ['IMAGE', 'TEXT'],
+          };
+        }
+
+        response = await ai.models.generateContent(genConfig);
+
+        if (model === 'gemini-2.5-flash-image') {
+          let agentText = '';
+          let agentImage = '';
+          for (const part of response.candidates[0].content.parts) {
+            if (part.text) {
+              agentText += part.text;
+            } else if (part.inlineData) {
+              const base64ImageBytes: string = part.inlineData.data;
+              agentImage = `data:${part.inlineData.mimeType};base64,${base64ImageBytes}`;
+            }
+          }
+          addTurn({
+            role: 'agent',
+            text: agentText || 'Here is the edited image.',
+            isFinal: true,
+            image: agentImage,
+          });
+        } else {
+          addTurn({
+            role: 'agent',
+            text: response.text,
+            isFinal: true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error sending message to Gemini:', error);
+      addTurn({
+        role: 'system',
+        text: `Error: Could not get a response. Please check your connection and API key.`,
+        isFinal: true,
+      });
+    } finally {
+      if (editingImage) {
+        setEditingImage(null);
+      }
+    }
+  },
+}));

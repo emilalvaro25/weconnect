@@ -17,7 +17,7 @@ const WelcomeScreen: React.FC = () => {
   return (
     <div className="welcome-screen">
       <div className="welcome-content">
-        <h2 className="welcome-title">What can I help with?</h2>
+        <h2 className="welcome-title">Hello! How can I help you today?</h2>
         <div className="suggestion-chips">
           <button
             className="chip chip-image"
