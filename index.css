@@ -2020,6 +2020,12 @@ form button:first-of-type {
   flex-direction: column;
 }
 
+.auth-logo {
+  width: 100px;
+  height: auto;
+  margin: 0 auto 24px;
+}
+
 .auth-title {
   font-size: 32px;
   font-weight: 700;

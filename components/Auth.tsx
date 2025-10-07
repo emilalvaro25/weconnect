@@ -115,6 +115,11 @@ const Auth = () => {
   return (
     <div className="auth-container">
       <div className="auth-form-wrapper">
+        <img
+          src="https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/kithai.png"
+          alt="Kithai AI Logo"
+          className="auth-logo"
+        />
         <h1 className="auth-title">Kithai AI</h1>
         <p className="auth-subtitle">
           {view === 'login' && 'Welcome back'}

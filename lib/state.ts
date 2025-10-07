@@ -1174,11 +1174,6 @@ export const useAppsStore = create<AppsState>((set, get) => ({
   isLoading: false,
   knowledgeBase: new Map(),
   fetchApps: async () => {
-    const { user } = useAuthStore.getState();
-    if (!user?.email) {
-      console.warn('Cannot fetch apps, user is not connected.');
-      return;
-    }
     set({ isLoading: true });
     try {
       const { data, error } = await supabase
