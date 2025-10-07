@@ -28,6 +28,7 @@ export default function AppViewer() {
         className="app-viewer-iframe"
         title="App Viewer"
         allow="camera; microphone; autoplay; display-capture; fullscreen; clipboard-write; clipboard-read; speaker-selection; encrypted-media; picture-in-picture; geolocation; payment; web-share;"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-top-navigation-by-user-activation"
       />
     </div>
   );
