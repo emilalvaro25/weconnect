@@ -1065,7 +1065,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
     try {
       // 1. Upload logo to Supabase Storage
       const fileExt = logoFile.name.split('.').pop();
-      const filePath = `${user.id}/${new Date().getTime()}.${fileExt}`;
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('app_logos')
         .upload(filePath, logoFile);
