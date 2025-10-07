@@ -59,7 +59,12 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const { isVoiceCallActive, isWhatsAppModalOpen, isAddAppModalOpen } = useUI();
   const { session, loading, setSession } = useAuthStore();
-  const { loadUserData, resetToDefaults, getSystemPrompt } = useUserSettings();
+  const {
+    loadUserData,
+    resetToDefaults,
+    getSystemPrompt,
+    seedInitialKnowledge,
+  } = useUserSettings();
   const {
     loadHistory,
     clearTurnsForLogout,
@@ -77,10 +82,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       if (session?.user?.email) {
-        loadUserData(session.user.email);
+        await loadUserData(session.user.email);
+        seedInitialKnowledge();
         loadHistory();
         fetchApps();
       }
@@ -88,10 +94,11 @@ function App() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       if (session?.user?.email) {
-        loadUserData(session.user.email);
+        await loadUserData(session.user.email);
+        seedInitialKnowledge();
         loadHistory();
         fetchApps();
       } else {
@@ -111,6 +118,7 @@ function App() {
     clearTurnsForLogout,
     fetchApps,
     clearSeenApps,
+    seedInitialKnowledge,
   ]);
 
   useEffect(() => {

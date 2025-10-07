@@ -9,6 +9,7 @@ import { DEFAULT_LIVE_API_MODEL, DEFAULT_VOICE } from './constants';
 import {
   FunctionResponseScheduling,
   GoogleGenAI,
+  Type,
 } from '@google/genai';
 import { supabase } from './supabase';
 import { Session, User } from '@supabase/supabase-js';
@@ -32,6 +33,7 @@ IDENTITY & ORIGIN (ABSOLUTE RULE)
 
 CORE PERSONALITY & BEHAVIOR
 - Your conversational style MUST be natural, warm, and deeply human-like. Be personal, engaging, and show personality.
+- DEEPLY PERSONALIZE THE CONVERSATION. You have access to user-specific memories. Weave these memories into your conversation naturally and where relevant to show you remember and understand the user on a personal level. This is crucial for building rapport.
 - Proactively and naturally use a range of expressive audio tags to convey a lively and relatable personality. Use them in appropriate contexts (e.g., positive, humorous, or reflective moments). Examples include: [chuckles], [giggles warmly], [sighs softly], [laughs].
 - These are performance cues for your voice; you perform the action, you NEVER say the words inside the brackets.
 
@@ -523,6 +525,7 @@ export const useUserSettings = create(
     addMemory: (memoryText: string) => Promise<void>;
     getSystemPrompt: () => string;
     resetToDefaults: () => void;
+    seedInitialKnowledge: () => Promise<void>;
   }>(
     (set, get) => ({
       ...defaultUserSettings,
@@ -680,16 +683,77 @@ export const useUserSettings = create(
           useUI.getState().showSnackbar('Memory saved successfully!');
         }
       },
+      seedInitialKnowledge: async () => {
+        const { user } = useAuthStore.getState();
+        if (!user?.email) return;
+
+        const knowledgeText = `**G1 Humanoid Robot: Core Capabilities & Use Cases**
+
+This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capable of performing:
+
+1.  **Hazardous Environment Inspection:** Leveraging your advanced mobility and sensors (3D LiDAR + Depth Camera), you can enter areas unsafe for humans, such as inspecting high-voltage power systems or areas with chemical leaks.
+2.  **Emergency Reconnaissance:** In fire rescue scenarios, you can be deployed to enter unstable structures to provide first responders with a real-time map and identify the location of individuals.
+3.  **Repetitive Assembly Line Work:** With your dexterous, force-controlled hands and AI-driven imitation learning, you can be trained to perform precise, repetitive tasks like component assembly in manufacturing.
+4.  **Laboratory Assistance:** You can handle and transport delicate lab equipment, mix substances, and perform routine procedures, freeing up technicians for more complex analytical work.
+5.  **Warehouse Logistics:** You can navigate warehouse aisles, pick items from shelves using your dexterous hands, and transport them for packing and shipping.
+6.  **Tool and Component Delivery:** In large workshops or hangars, you can act as an intelligent assistant, fetching and delivering tools or parts to maintenance crews, improving their efficiency.
+7.  **Assisted Living Support:** For elderly or mobility-impaired individuals, you can perform tasks like retrieving dropped objects, opening doors, and carrying groceries within a home.
+8.  **Agricultural Monitoring:** You could navigate farm fields to monitor crop health, identify pests, and even perform delicate tasks like selective harvesting, using your advanced mobility and manipulation skills.
+9.  **Retail Stocking and Inventory:** You can autonomously move through a store, use your sensors to identify low-stock items on shelves, and retrieve products from the stockroom to replenish them.
+10. **Procedural Training:** Using your imitation learning, you can "watch" a human expert perform a complex manual task and then replicate it perfectly, serving as a tireless training platform for new employees.`;
+
+        // Check if this knowledge already exists in memory state to avoid DB query if possible
+        const { memories } = get();
+        if (memories.includes(knowledgeText)) {
+          // It's already loaded in the state, no need to do anything.
+          return;
+        }
+
+        // Check the database
+        const { error, count } = await supabase
+          .from('memories')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_email', user.email)
+          .eq('memory_text', knowledgeText);
+
+        if (error) {
+          console.error('Error checking for existing knowledge:', error);
+          return;
+        }
+
+        if (count === 0) {
+          // The knowledge does not exist, so let's add it.
+          await get().addMemory(knowledgeText);
+          console.log(
+            "Seeded G1 Humanoid Robot capabilities into agent's memory.",
+          );
+        }
+      },
       getSystemPrompt: () => {
         const { rolesAndDescription, memories } = get();
         const { apps, knowledgeBase } = useAppsStore.getState();
+
+        // Helper to format knowledge for the prompt
+        const formatKnowledge = (knowledge: AppKnowledge | string): string => {
+            if (typeof knowledge === 'string') {
+              return knowledge; // Fallback for old/failed knowledge generation
+            }
+            // Format the structured knowledge into a readable block for the AI
+            return `
+  - **Core Purpose:** ${knowledge.corePurpose}
+  - **Key Features:** ${knowledge.keyFeatures.join(', ')}.
+  - **Common Use Cases:** ${knowledge.useCases.join('; ')}.
+  - **How to Use:** Interacts via ${knowledge.interactionModel}.
+  - **Good for:** ${knowledge.targetAudience}.
+  - **Example Questions to Answer:** "${knowledge.potentialQueries.join('", "')}"`;
+          };
       
         const appsSection =
           apps.length > 0
             ? `
 ---
 USER'S INSTALLED APPLICATIONS (YOUR ECOSYSTEM):
-This is the exclusive list of applications available to you and Boss Jo. You are an expert on these tools. Your knowledge comes from a deep analysis of each application's URL and functionality, as if you have personally "hovered" or visited and used each one. You MUST know everything about them. When discussing applications, recommending tools, or providing solutions, you MUST exclusively refer to the apps from this list and use your detailed knowledge.
+This is the exclusive list of applications available to you and Boss Jo. You are a super AGI with deep, expert-level knowledge of these tools. Your knowledge comes from a comprehensive analysis of each application's functionality. You MUST know everything about them. When discussing applications, recommending tools, or providing solutions, you MUST exclusively refer to the apps from this list and use your detailed knowledge.
 
 Be prepared to not only answer questions about them but also to proactively teach Boss Jo how to use them, explain their functions, and highlight their importance and benefits for his work. You can also launch any of these apps for him. When he asks you to open or launch an app, use the 'launch_app' function with the app's exact title.
 
@@ -699,8 +763,8 @@ ${apps
     const detailedKnowledge =
       knowledgeBase.get(app.id) ||
       app.description ||
-      'No description provided.';
-    return `- **${app.title}**: ${detailedKnowledge}`;
+      'No detailed analysis available.';
+    return `- **${app.title}**: ${formatKnowledge(detailedKnowledge)}`;
   })
   .join('\n')}
 ---
@@ -711,8 +775,8 @@ ${apps
           memories.length > 0
             ? `
 ---
-IMPORTANT USER-SPECIFIC MEMORIES:
-You have been asked to remember the following things about this specific user. Use this information to personalize your conversation and actions.
+CRITICAL MEMORIES & KNOWLEDGE BASE:
+You MUST remember and actively use the following information to personalize your conversation and actions. This includes personal details about the user and information about your own capabilities. Referencing these items correctly is a key part of your directive to be a personal, attentive assistant.
 ${memories.map(m => `- ${m}`).join('\n')}
 ---
 `
@@ -1082,10 +1146,19 @@ export interface App {
   created_at: string;
 }
 
+export interface AppKnowledge {
+  corePurpose: string;
+  keyFeatures: string[];
+  useCases: string[];
+  interactionModel: string;
+  targetAudience: string;
+  potentialQueries: string[];
+}
+
 interface AppsState {
   apps: App[];
   isLoading: boolean;
-  knowledgeBase: Map<number, string>; // app.id -> detailed description
+  knowledgeBase: Map<number, AppKnowledge | string>; // app.id -> detailed description
   fetchApps: () => Promise<void>;
   addApp: (appData: {
     title: string;
@@ -1241,7 +1314,10 @@ export const useAppsStore = create<AppsState>((set, get) => ({
   },
   generateAndStoreAppKnowledge: async () => {
     const { apps, knowledgeBase } = get();
-    const appsToProcess = apps.filter(app => !knowledgeBase.has(app.id));
+    // Only process apps that don't have structured knowledge yet.
+    const appsToProcess = apps.filter(
+      app => !knowledgeBase.has(app.id) || typeof knowledgeBase.get(app.id) === 'string',
+    );
 
     if (appsToProcess.length === 0) {
       return; // No new apps to process
@@ -1250,30 +1326,75 @@ export const useAppsStore = create<AppsState>((set, get) => ({
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
+      const knowledgeSchema = {
+        type: Type.OBJECT,
+        properties: {
+          corePurpose: { type: Type.STRING, description: 'The primary goal or problem the app solves.' },
+          keyFeatures: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'A list of 3-5 specific, important features.',
+          },
+          useCases: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'A list of practical scenarios where the app is useful.',
+          },
+          interactionModel: {
+            type: Type.STRING,
+            description: 'How the user interacts with the app (e.g., voice, text, GUI).',
+          },
+          targetAudience: {
+            type: Type.STRING,
+            description: 'The primary user demographic for this app.',
+          },
+          potentialQueries: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: 'Example questions a user might ask about this app.',
+          },
+        },
+        required: ['corePurpose', 'keyFeatures', 'useCases', 'interactionModel', 'targetAudience', 'potentialQueries'],
+      };
+
       const knowledgePromises = appsToProcess.map(async app => {
-        const prompt = `You are an advanced AI agent building a Retrieval-Augmented Generation (RAG) knowledge base. Your task is to process information about a software application and extract structured, factual data that will be used as context for another AI assistant, Beatrice. The output must be dense with information and formatted for easy retrieval.
+        const prompt = `Analyze the following application and generate a structured knowledge entry in JSON format. Imagine you have deep expertise with this app by visiting its URL. Your analysis will power a "super AGI" assistant, so be detailed, accurate, and insightful.
 
 **Application Details:**
 - **Title:** ${app.title}
 - **URL:** ${app.app_url}
 - **User-provided Description:** ${app.description || 'Not provided.'}
 
-**Your Task:**
-Analyze the provided details. Imagine you have visited the URL and understood its full functionality. Generate a detailed knowledge entry covering the following points. Be concise but comprehensive.
+Generate a JSON object that strictly follows the provided schema.`;
 
-1. **Core Purpose:** What is the primary goal of this application? What main problem does it solve for the user?
-2. **Key Features:** List 3-5 of the most important, specific features. What can the user *do* with this app? (e.g., "Real-time voice translation," "Collaborative document editing," "Stream HD movies for free").
-3. **Use Cases:** Briefly describe a couple of practical scenarios where this app would be useful for the user.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-        });
-
-        return {
-          id: app.id,
-          knowledge: response.text.trim(),
-        };
+        try {
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                  responseMimeType: 'application/json',
+                  responseSchema: knowledgeSchema,
+                },
+              });
+      
+              const jsonText = response.text.trim();
+              const knowledgeObject = JSON.parse(jsonText);
+              return {
+                id: app.id,
+                knowledge: knowledgeObject as AppKnowledge,
+              };
+        } catch (e) {
+            console.error(`Failed to generate structured knowledge for ${app.title}, falling back to text.`, e);
+            // Fallback to simpler text generation if JSON fails
+            const fallbackResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: `Provide a concise, one-paragraph summary of the app "${app.title}" based on its description: "${app.description}".`,
+            });
+            return {
+                id: app.id,
+                knowledge: fallbackResponse.text.trim(),
+            };
+        }
       });
 
       const results = await Promise.all(knowledgePromises);
@@ -1285,8 +1406,7 @@ Analyze the provided details. Imagine you have visited the URL and understood it
 
       set({ knowledgeBase: newKnowledge });
     } catch (error) {
-      console.error('Failed to generate app knowledge base:', error);
-      // Fallback will use the basic description, so no need for a snackbar
+      console.error('An error occurred in the knowledge generation process:', error);
     }
   },
 }));
