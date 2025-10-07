@@ -1200,6 +1200,32 @@ export const useAppsStore = create<AppsState>((set, get) => ({
 }));
 
 /**
+ * Seen Apps
+ */
+interface SeenAppsState {
+  seenAppIds: number[];
+  addSeenAppIds: (ids: number[]) => void;
+  clearSeenApps: () => void;
+}
+
+export const useSeenAppsStore = create<SeenAppsState>()(
+  persist(
+    (set, get) => ({
+      seenAppIds: [],
+      addSeenAppIds: ids => {
+        const currentIds = new Set(get().seenAppIds);
+        ids.forEach(id => currentIds.add(id));
+        set({ seenAppIds: Array.from(currentIds) });
+      },
+      clearSeenApps: () => set({ seenAppIds: [] }),
+    }),
+    {
+      name: 'seen-apps-storage',
+    },
+  ),
+);
+
+/**
  * Log
  */
 export interface ConversationTurn {

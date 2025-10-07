@@ -29,13 +29,21 @@ import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import Auth from './components/Auth';
 import { LiveAPIProvider } from './contexts/LiveAPIContext';
-import { useUI, useUserSettings, useAuthStore, useLogStore } from './lib/state';
+import {
+  useUI,
+  useUserSettings,
+  useAuthStore,
+  useLogStore,
+  useAppsStore,
+  useSeenAppsStore,
+} from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
 import { supabase } from './lib/supabase';
 import AddAppModal from './components/AddAppModal';
 import AppViewer from './components/AppViewer';
 import SplashScreen from './components/SplashScreen';
+import { GoogleGenAI } from '@google/genai';
 
 // Fix: Use process.env.API_KEY per coding guidelines.
 const API_KEY = process.env.API_KEY as string;
@@ -49,14 +57,17 @@ if (typeof API_KEY !== 'string') {
  */
 function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const {
-    isVoiceCallActive,
-    isWhatsAppModalOpen,
-    isAddAppModalOpen,
-  } = useUI();
+  const { isVoiceCallActive, isWhatsAppModalOpen, isAddAppModalOpen } = useUI();
   const { session, loading, setSession } = useAuthStore();
-  const { loadUserData, resetToDefaults } = useUserSettings();
-  const { loadHistory, clearTurnsForLogout } = useLogStore();
+  const { loadUserData, resetToDefaults, getSystemPrompt } = useUserSettings();
+  const {
+    loadHistory,
+    clearTurnsForLogout,
+    turns,
+    addTurn,
+  } = useLogStore();
+  const { apps, fetchApps } = useAppsStore();
+  const { seenAppIds, addSeenAppIds, clearSeenApps } = useSeenAppsStore();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -71,6 +82,7 @@ function App() {
       if (session?.user?.email) {
         loadUserData(session.user.email);
         loadHistory();
+        fetchApps();
       }
     });
 
@@ -81,10 +93,12 @@ function App() {
       if (session?.user?.email) {
         loadUserData(session.user.email);
         loadHistory();
+        fetchApps();
       } else {
         // User logged out, reset settings
         resetToDefaults();
         clearTurnsForLogout();
+        clearSeenApps();
       }
     });
 
@@ -95,7 +109,62 @@ function App() {
     resetToDefaults,
     loadHistory,
     clearTurnsForLogout,
+    fetchApps,
+    clearSeenApps,
   ]);
+
+  useEffect(() => {
+    // This effect runs to check for and introduce new apps.
+    const checkForNewApps = async () => {
+      // Only run if apps are loaded, this is a new session, and we are not already processing.
+      if (apps.length > 0 && turns.length === 0) {
+        const newApps = apps.filter(app => !seenAppIds.includes(app.id));
+
+        if (newApps.length > 0) {
+          // There are new apps to announce.
+          const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+          const personaDesc = useUserSettings.getState().rolesAndDescription;
+          const match = personaDesc.match(/assistant of ([^,]+),/);
+          const userName = match ? match[1] : 'your boss';
+
+          const prompt = `You are Beatrice, the AI assistant. Upon starting a new session, you've noticed that new applications have been added to your system. Your task is to craft a warm, welcoming message for ${userName}. Start by greeting them personally. Then, announce that you have some new tools to show them. For each new app, introduce it by name and conversationally explain its key features and benefits in an engaging way.
+
+Here are the new apps you need to introduce:
+
+${JSON.stringify(newApps.map(app => ({ title: app.title, description: app.description })), null, 2)}
+`;
+          try {
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+              config: {
+                systemInstruction: getSystemPrompt(), // Use the main system prompt for consistency
+              },
+            });
+
+            const introMessage = response.text;
+
+            if (introMessage) {
+              addTurn({
+                role: 'agent',
+                text: introMessage,
+                isFinal: true,
+              });
+            }
+
+            // Mark these apps as seen
+            addSeenAppIds(newApps.map(app => app.id));
+          } catch (error) {
+            console.error('Failed to generate new app introduction:', error);
+            // Don't mark as seen if it fails, so it can try again next time.
+          }
+        }
+      }
+    };
+
+    checkForNewApps();
+  }, [apps, turns.length, seenAppIds, addSeenAppIds, addTurn, getSystemPrompt]);
 
   if (showSplash) {
     return <SplashScreen />;

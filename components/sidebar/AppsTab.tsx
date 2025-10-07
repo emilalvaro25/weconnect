@@ -7,12 +7,8 @@ import { useAppsStore, useUI } from '../../lib/state';
 import AppCard from './AppCard';
 
 export default function AppsTab() {
-  const { apps, isLoading, fetchApps } = useAppsStore();
+  const { apps, isLoading } = useAppsStore();
   const { showAddAppModal } = useUI();
-
-  useEffect(() => {
-    fetchApps();
-  }, [fetchApps]);
 
   return (
     <div className="apps-tab-panel">
