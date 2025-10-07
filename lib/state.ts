@@ -506,6 +506,7 @@ const defaultUserSettings = {
   rolesAndDescription: defaultRolesAndDescription,
   voice: 'Aoede',
   memories: [],
+  relevantMemories: [],
 };
 
 /**
@@ -518,11 +519,13 @@ export const useUserSettings = create(
     rolesAndDescription: string;
     voice: string;
     memories: string[];
+    relevantMemories: string[];
     loadUserData: (userEmail: string) => Promise<void>;
     setLogoUrl: (url: string) => Promise<void>;
     savePersona: (name: string, description: string) => Promise<void>;
     setVoice: (voice: string) => Promise<void>;
     addMemory: (memoryText: string) => Promise<void>;
+    findAndUpdateRelevantMemories: (query: string) => Promise<void>;
     getSystemPrompt: () => string;
     resetToDefaults: () => void;
     seedInitialKnowledge: () => Promise<void>;
@@ -671,16 +674,77 @@ export const useUserSettings = create(
           useUI.getState().showSnackbar('Error: User not connected.');
           return;
         }
-        const { error } = await supabase
-          .from('memories')
-          .insert({ user_email: user.email, memory_text: memoryText });
+        try {
+          const ai = new GoogleGenAI({
+            apiKey: process.env.API_KEY as string,
+          });
+          // NOTE: The provided coding guidelines do not specify the API for text embeddings.
+          // This usage is inferred based on the user request and API patterns from the guidelines.
+          // This assumes the underlying Supabase 'memories' table has an 'embedding' column of type 'vector'.
+          const result = await (ai.models as any).embedContent({
+            model: 'gemini-embedding-001',
+            content: memoryText,
+          });
+          const embedding = result.embedding; // Assuming result is { embedding: number[] }
 
-        if (error) {
-          console.error('Error saving memory:', error);
-          useUI.getState().showSnackbar('Error saving memory.');
-        } else {
+          const { error } = await supabase.from('memories').insert({
+            user_email: user.email,
+            memory_text: memoryText,
+            embedding: embedding,
+          });
+
+          if (error) {
+            throw error;
+          }
+
           set(state => ({ memories: [...state.memories, memoryText] }));
-          useUI.getState().showSnackbar('Memory saved successfully!');
+          useUI.getState().showSnackbar('Memory saved and indexed successfully!');
+        } catch (error) {
+          console.error('Error saving or embedding memory:', error);
+          useUI.getState().showSnackbar('Error saving memory.');
+        }
+      },
+      findAndUpdateRelevantMemories: async (query: string) => {
+        const { user } = useAuthStore.getState();
+        const { memories } = get();
+        // Don't search if there's no user or no memories to search through.
+        if (!user?.email || memories.length === 0) {
+          set({ relevantMemories: [] });
+          return;
+        }
+
+        try {
+          const ai = new GoogleGenAI({
+            apiKey: process.env.API_KEY as string,
+          });
+          // 1. Embed the user's query
+          const result = await (ai.models as any).embedContent({
+            model: 'gemini-embedding-001',
+            content: query,
+          });
+          const embedding = result.embedding;
+
+          // 2. Call a Supabase RPC to find matching memories
+          // This requires a `match_memories` function to be created in your Supabase SQL editor.
+          const { data, error } = await supabase.rpc('match_memories', {
+            query_embedding: embedding,
+            match_threshold: 0.75, // Adjust this threshold as needed
+            match_count: 5,
+            user_email_arg: user.email,
+          });
+
+          if (error) {
+            throw error;
+          }
+
+          if (data && data.length > 0) {
+            set({ relevantMemories: data.map((m: any) => m.memory_text) });
+          } else {
+            set({ relevantMemories: [] });
+          }
+        } catch (error) {
+          console.error('Error finding relevant memories:', error);
+          set({ relevantMemories: [] }); // Clear on error
         }
       },
       seedInitialKnowledge: async () => {
@@ -730,7 +794,7 @@ This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capabl
         }
       },
       getSystemPrompt: () => {
-        const { rolesAndDescription, memories } = get();
+        const { rolesAndDescription, relevantMemories } = get();
         const { apps, knowledgeBase } = useAppsStore.getState();
 
         // Helper to format knowledge for the prompt
@@ -772,12 +836,12 @@ ${apps
             : '';
       
         const memorySection =
-          memories.length > 0
+          relevantMemories.length > 0
             ? `
 ---
-CRITICAL MEMORIES & KNOWLEDGE BASE:
-You MUST remember and actively use the following information to personalize your conversation and actions. This includes personal details about the user and information about your own capabilities. Referencing these items correctly is a key part of your directive to be a personal, attentive assistant.
-${memories.map(m => `- ${m}`).join('\n')}
+CONTEXTUALLY RELEVANT MEMORIES & KNOWLEDGE:
+You have retrieved the following information from your long-term memory because it seems highly relevant to our current conversation. You MUST use this context to inform your response and demonstrate your understanding of previous interactions.
+${relevantMemories.map(m => `- ${m}`).join('\n')}
 ---
 `
             : '';

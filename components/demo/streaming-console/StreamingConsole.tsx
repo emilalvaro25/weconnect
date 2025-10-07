@@ -58,7 +58,7 @@ const renderContent = (text: string) => {
 
 export default function StreamingConsole() {
   const { client, setConfig } = useLiveAPIContext();
-  const { voice, getSystemPrompt } = useUserSettings();
+  const { voice, getSystemPrompt, relevantMemories } = useUserSettings();
   const { session } = useAuthStore();
   const isGoogleConnected = !!session?.provider_token;
   const { tools } = useTools();
@@ -122,7 +122,7 @@ export default function StreamingConsole() {
     };
 
     setConfig(config);
-  }, [setConfig, getSystemPrompt, voice, tools, isGoogleConnected]);
+  }, [setConfig, getSystemPrompt, voice, tools, isGoogleConnected, relevantMemories]);
 
   useEffect(() => {
     const { addTurn, updateLastTurn } = useLogStore.getState();

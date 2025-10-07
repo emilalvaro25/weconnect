@@ -64,6 +64,7 @@ function App() {
     resetToDefaults,
     getSystemPrompt,
     seedInitialKnowledge,
+    findAndUpdateRelevantMemories,
   } = useUserSettings();
   const {
     loadHistory,
@@ -179,6 +180,15 @@ ${JSON.stringify(newApps.map(app => ({ title: app.title, description: app.descri
 
     checkForNewApps();
   }, [apps, turns.length, seenAppIds, addSeenAppIds, addTurn, getSystemPrompt]);
+
+  // Effect to trigger relevant memory search on new user input.
+  useEffect(() => {
+    // FIX: Property 'at' does not exist on type 'ConversationTurn[]'. Replaced with array index access.
+    const lastTurn = turns[turns.length - 1];
+    if (lastTurn && lastTurn.role === 'user' && lastTurn.isFinal) {
+      findAndUpdateRelevantMemories(lastTurn.text);
+    }
+  }, [turns, findAndUpdateRelevantMemories]);
 
   if (showSplash) {
     return <SplashScreen />;
