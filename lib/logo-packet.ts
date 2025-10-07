@@ -5,6 +5,7 @@
 // A curated list of recognizable, high-quality logos for common applications.
 // Sourced from iconify.design, which provides a vast collection of open-source icons.
 export const LOGO_PACKET: string[] = [
+  'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
   'https://api.iconify.design/logos:google-translate.svg',
   'https://api.iconify.design/logos:google-cloud.svg',
   'https://api.iconify.design/logos:google-calendar.svg',

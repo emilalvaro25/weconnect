@@ -1314,6 +1314,14 @@ export interface App {
   logo_url: string;
 }
 
+const defaultKithaiApp: App = {
+  id: 'default-kithai-app',
+  title: 'Kithai AI',
+  description: 'Your personal AI assistant, ready to chat, help, and connect.',
+  app_url: 'about:blank', // Represents the main app, opens a blank page.
+  logo_url: 'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
+};
+
 const defaultTranslatorApp: App = {
   id: 'default-translator-app',
   title: 'Translator',
@@ -1334,14 +1342,16 @@ interface AppsState {
   }) => Promise<void>;
 }
 
+const defaultApps = [defaultKithaiApp, defaultTranslatorApp];
+
 export const useAppsStore = create<AppsState>((set, get) => ({
-  apps: [defaultTranslatorApp],
+  apps: defaultApps,
   isLoading: false,
   fetchApps: async () => {
     set({ isLoading: true });
     const { user } = useAuthStore.getState();
     if (!user?.email) {
-      set({ apps: [defaultTranslatorApp], isLoading: false });
+      set({ apps: defaultApps, isLoading: false });
       return;
     }
 
@@ -1355,12 +1365,12 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       if (error) throw error;
       
       const userApps = (data as App[]) || [];
-      set({ apps: [defaultTranslatorApp, ...userApps], isLoading: false });
+      set({ apps: [...defaultApps, ...userApps], isLoading: false });
 
     } catch (error) {
       console.error('Error fetching apps:', error);
       useUI.getState().showSnackbar('Could not load apps.');
-      set({ apps: [defaultTranslatorApp], isLoading: false });
+      set({ apps: defaultApps, isLoading: false });
     }
   },
   addApp: async ({ title, description, app_url, logoFile }) => {
