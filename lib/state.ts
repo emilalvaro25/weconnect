@@ -1138,7 +1138,7 @@ export const useTools = create<{
  */
 export interface App {
   id: number;
-  user_email: string;
+  user_email: string | null;
   title: string;
   description?: string;
   app_url: string;
@@ -1192,7 +1192,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const defaultApps: App[] = [
         {
           id: 999996, // New unique ID
-          user_email: user.email,
+          user_email: null,
           title: 'Bots R Here',
           description: 'Human realistic avatar.',
           app_url: 'https://botsrhere.online/index.html',
@@ -1202,7 +1202,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         },
         {
           id: 999997, // Another unique ID
-          user_email: user.email,
+          user_email: null,
           title: 'Movie App',
           description:
             'A free movie streaming application for all users.',
@@ -1213,7 +1213,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         },
         {
           id: 999999, // Use a unique ID to avoid conflicts
-          user_email: user.email,
+          user_email: null,
           title: 'Translator',
           description: 'Translate text between many languages instantly.',
           app_url: 'https://translate-now-539403796561.us-west1.run.app',
@@ -1223,7 +1223,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         },
         {
           id: 999998, // Another unique ID
-          user_email: user.email,
+          user_email: null,
           title: 'Zumi',
           description:
             'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
@@ -1267,7 +1267,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
     try {
       // 1. Upload logo to Supabase Storage
       const fileExt = logoFile.name.split('.').pop();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+      const filePath = `public/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('app_logos')
         .upload(filePath, logoFile);
@@ -1290,7 +1290,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const { data: newApp, error: insertError } = await supabase
         .from('apps')
         .insert({
-          user_email: user.email,
+          user_email: null,
           title,
           description,
           app_url,
