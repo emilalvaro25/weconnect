@@ -25,4 +25,22 @@ export const coreTools: FunctionCall[] = [
     isEnabled: true,
     scheduling: FunctionResponseScheduling.SILENT,
   },
+  {
+    name: 'launch_app',
+    description:
+      "Launches one of the user's installed applications in a full-screen view.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        app_name: {
+          type: 'STRING',
+          description:
+            "The exact title of the app to launch from the list of installed applications.",
+        },
+      },
+      required: ['app_name'],
+    },
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+  },
 ];

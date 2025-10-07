@@ -24,7 +24,7 @@ import { LiveConnectConfig, Modality, LiveServerToolCall } from '@google/genai';
 import { AudioStreamer } from '../../lib/audio-streamer';
 import { audioContext } from '../../lib/utils';
 import VolMeterWorket from '../../lib/worklets/vol-meter';
-import { useLogStore, useSettings, useUserSettings, useWhatsAppIntegrationStore, useAuthStore } from '@/lib/state';
+import { useLogStore, useSettings, useUserSettings, useWhatsAppIntegrationStore, useAuthStore, useAppsStore, useUI } from '@/lib/state';
 
 export type UseLiveApiResults = {
   client: GenAILiveClient;
@@ -357,6 +357,26 @@ async function handleCreateCalendarEvent(
   }
 }
 
+async function handleLaunchApp(args: any) {
+  const { app_name } = args;
+  if (!app_name) {
+    return 'You need to tell me the name of the app to launch.';
+  }
+
+  const { apps } = useAppsStore.getState();
+  const appToLaunch = apps.find(
+    app => app.title.toLowerCase() === app_name.toLowerCase(),
+  );
+
+  if (appToLaunch) {
+    useUI.getState().setViewingAppUrl(appToLaunch.app_url);
+    return `Launching ${appToLaunch.title}.`;
+  } else {
+    const availableApps = apps.map(app => app.title).join(', ');
+    return `Sorry, I couldn't find an app named "${app_name}". Available apps are: ${availableApps}.`;
+  }
+}
+
 export function useLiveApi({
   apiKey,
 }: {
@@ -461,6 +481,9 @@ export function useLiveApi({
             break;
           case 'save_memory':
             resultPromise = handleSaveMemory(fc.args);
+            break;
+          case 'launch_app':
+            resultPromise = handleLaunchApp(fc.args);
             break;
           case 'send_whatsapp_message':
             resultPromise = handleSendWhatsAppMessage(fc.args);
