@@ -34,8 +34,6 @@ import { useUI, useUserSettings, useAuthStore, useLogStore } from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
 import { supabase } from './lib/supabase';
-import AddAppModal from './components/AddAppModal';
-import AppViewer from './components/AppViewer';
 
 // Fix: Use process.env.API_KEY per coding guidelines.
 const API_KEY = process.env.API_KEY as string;
@@ -51,8 +49,6 @@ function App() {
   const {
     isVoiceCallActive,
     isWhatsAppModalOpen,
-    isAddAppModalOpen,
-    viewingAppUrl,
   } = useUI();
   const { session, loading, setSession } = useAuthStore();
   const { loadUserData, resetToDefaults } = useUserSettings();
@@ -120,11 +116,9 @@ function App() {
             even when not visible. Visibility is controlled by CSS. */}
         <VoiceCall />
         {isWhatsAppModalOpen && <WhatsAppModal />}
-        {isAddAppModalOpen && <AddAppModal />}
-        {viewingAppUrl && <AppViewer />}
         <div
           className={cn('main-ui-wrapper', {
-            hidden: isVoiceCallActive || !!viewingAppUrl,
+            hidden: isVoiceCallActive,
           })}
         >
           <Header />

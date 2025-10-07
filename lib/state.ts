@@ -280,6 +280,7 @@ export const useUI = create<{
   showSnackbar: (message: string | null) => void;
   editingImage: { data: string; mimeType: string } | null;
   setEditingImage: (image: { data: string; mimeType: string } | null) => void;
+  // Fix: Add state management for the AddAppModal and AppViewer.
   isAddAppModalOpen: boolean;
   showAddAppModal: () => void;
   hideAddAppModal: () => void;
@@ -298,11 +299,12 @@ export const useUI = create<{
   showSnackbar: (message: string | null) => set({ snackbarMessage: message }),
   editingImage: null,
   setEditingImage: image => set({ editingImage: image }),
+  // Fix: Add state management for the AddAppModal and AppViewer.
   isAddAppModalOpen: false,
   showAddAppModal: () => set({ isAddAppModalOpen: true }),
   hideAddAppModal: () => set({ isAddAppModalOpen: false }),
   viewingAppUrl: null,
-  setViewingAppUrl: (url) => set({ viewingAppUrl: url }),
+  setViewingAppUrl: url => set({ viewingAppUrl: url }),
 }));
 
 /**
@@ -980,112 +982,6 @@ export const useTools = create<{
 }));
 
 /**
- * Apps
- */
-export interface App {
-  id: string;
-  user_email: string;
-  logo_url: string;
-  title: string;
-  description: string;
-  app_url: string;
-  created_at: string;
-}
-
-export const useAppsStore = create<{
-  apps: App[];
-  isLoading: boolean;
-  fetchApps: () => Promise<void>;
-  addApp: (appData: {
-    title: string;
-    description: string;
-    app_url: string;
-    logoFile: File;
-  }) => Promise<void>;
-}>((set, get) => ({
-  apps: [],
-  isLoading: false,
-  fetchApps: async () => {
-    const { user } = useAuthStore.getState();
-    if (!user?.email) return;
-
-    set({ isLoading: true });
-    try {
-      const { data, error } = await supabase
-        .from('apps')
-        .select('*')
-        .eq('user_email', user.email)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      set({ apps: data || [] });
-    } catch (error) {
-      console.error('Error fetching apps:', error);
-      useUI.getState().showSnackbar('Failed to load apps.');
-    } finally {
-      set({ isLoading: false });
-    }
-  },
-  addApp: async ({ title, description, app_url, logoFile }) => {
-    const { user } = useAuthStore.getState();
-    if (!user?.id || !user.email) {
-        useUI.getState().showSnackbar('You must be logged in to add an app.');
-        return;
-    }
-
-    try {
-      // 1. Upload logo to Supabase Storage
-      const fileExt = logoFile.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('app_logos')
-        .upload(filePath, logoFile);
-
-      if (uploadError) throw uploadError;
-
-      // 2. Get public URL for the uploaded logo
-      const { data: publicUrlData } = supabase.storage
-        .from('app_logos')
-        .getPublicUrl(filePath);
-      
-      if (!publicUrlData.publicUrl) {
-          throw new Error('Could not get public URL for the logo.');
-      }
-
-      const logo_url = publicUrlData.publicUrl;
-
-      // 3. Insert app metadata into the 'apps' table
-      const newApp = {
-        user_email: user.email,
-        title,
-        description,
-        app_url,
-        logo_url,
-      };
-
-      const { data, error: insertError } = await supabase
-        .from('apps')
-        .insert(newApp)
-        .select()
-        .single();
-      
-      if (insertError) throw insertError;
-
-      // 4. Update local state
-      set(state => ({ apps: [data, ...state.apps] }));
-      useUI.getState().showSnackbar('App added successfully!');
-      useUI.getState().hideAddAppModal();
-
-    } catch (error: any) {
-        console.error('Error adding app:', error);
-        useUI.getState().showSnackbar(`Error: ${error.message || 'Failed to add app.'}`);
-    }
-  },
-}));
-
-/**
  * Logs
  */
 export interface LiveClientToolResponse {
@@ -1404,4 +1300,107 @@ export const useLogStore = create<{
     }
   },
   clearTurnsForLogout: () => set({ turns: [] }),
+}));
+
+// Fix: Add App interface and useAppsStore to support new app components.
+/**
+ * Apps
+ */
+export interface App {
+  id: string;
+  title: string;
+  description: string;
+  app_url: string;
+  logo_url: string;
+}
+
+interface AppsState {
+  apps: App[];
+  isLoading: boolean;
+  fetchApps: () => Promise<void>;
+  addApp: (appData: {
+    title: string;
+    description: string;
+    app_url: string;
+    logoFile: File;
+  }) => Promise<void>;
+}
+
+export const useAppsStore = create<AppsState>((set, get) => ({
+  apps: [],
+  isLoading: false,
+  fetchApps: async () => {
+    set({ isLoading: true });
+    const { user } = useAuthStore.getState();
+    if (!user?.email) {
+      set({ apps: [], isLoading: false });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('apps')
+        .select('*')
+        .eq('user_email', user.email)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      if (data) {
+        set({ apps: data as App[], isLoading: false });
+      } else {
+        set({ apps: [], isLoading: false });
+      }
+    } catch (error) {
+      console.error('Error fetching apps:', error);
+      useUI.getState().showSnackbar('Could not load apps.');
+      set({ isLoading: false });
+    }
+  },
+  addApp: async ({ title, description, app_url, logoFile }) => {
+    const { user } = useAuthStore.getState();
+    if (!user?.email) {
+      useUI.getState().showSnackbar('You must be logged in to add an app.');
+      return;
+    }
+
+    try {
+      // 1. Upload logo
+      const fileExt = logoFile.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('app_logos')
+        .upload(filePath, logoFile);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from('app_logos').getPublicUrl(filePath);
+
+      // 3. Insert into DB
+      const { error: insertError } = await supabase.from('apps').insert({
+        user_email: user.email,
+        title,
+        description,
+        app_url,
+        logo_url: publicUrl,
+      });
+
+      if (insertError) throw insertError;
+
+      // 4. Refresh app list and close modal
+      await get().fetchApps();
+      useUI.getState().hideAddAppModal();
+      useUI.getState().showSnackbar('App added successfully!');
+    } catch (error: any) {
+      console.error('Error adding app:', error);
+      useUI
+        .getState()
+        .showSnackbar(`Error: ${error.message || 'Failed to add app.'}`);
+    }
+  },
 }));

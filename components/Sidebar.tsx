@@ -18,7 +18,6 @@ import { AVAILABLE_VOICES_MAP } from '@/lib/constants';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import { useState, useEffect } from 'react';
 import ToolEditorModal from './ToolEditorModal';
-import AppsTab from './sidebar/AppsTab';
 
 export default function Sidebar() {
   const { isSidebarOpen, toggleSidebar, showWhatsAppModal } = useUI();
@@ -97,15 +96,6 @@ export default function Sidebar() {
             role="tab"
           >
             User Settings
-          </button>
-          <button
-            className={c('sidebar-tab', { active: activeTab === 'apps' })}
-            onClick={() => setActiveTab('apps')}
-            aria-controls="apps-panel"
-            aria-selected={activeTab === 'apps'}
-            role="tab"
-          >
-            Apps
           </button>
         </div>
 
@@ -538,16 +528,6 @@ export default function Sidebar() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
-          {activeTab === 'apps' && (
-            <div
-              id="apps-panel"
-              className="tab-panel"
-              role="tabpanel"
-              aria-labelledby="apps-tab"
-            >
-              <AppsTab />
             </div>
           )}
         </div>

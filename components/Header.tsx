@@ -5,7 +5,7 @@
 import { useLogStore, useUI } from '@/lib/state';
 
 export default function Header() {
-  const { toggleSidebar, showAddAppModal } = useUI();
+  const { toggleSidebar } = useUI();
   const { clearTurns } = useLogStore();
 
   return (
@@ -19,13 +19,6 @@ export default function Header() {
       </button>
       <h1 className="app-title">Kithai AI</h1>
       <div className="header-actions">
-        <button
-          className="icon-button"
-          aria-label="Add new app"
-          onClick={showAddAppModal}
-        >
-          <span className="material-symbols-outlined">add</span>
-        </button>
         <button
           className="icon-button"
           aria-label="New chat"
