@@ -369,7 +369,20 @@ async function handleLaunchApp(args: any) {
   );
 
   if (appToLaunch) {
-    useUI.getState().setViewingAppUrl(appToLaunch.app_url);
+    let url = appToLaunch.app_url;
+    if (appToLaunch.title === 'Zumi') {
+      const { session } = useAuthStore.getState();
+      if (session?.access_token) {
+        try {
+          const urlObject = new URL(url);
+          urlObject.searchParams.set('auth_token', session.access_token);
+          url = urlObject.toString();
+        } catch (e) {
+          console.error('Invalid app URL for Zumi:', appToLaunch.app_url);
+        }
+      }
+    }
+    useUI.getState().setViewingAppUrl(url);
     return `Launching ${appToLaunch.title}.`;
   } else {
     const availableApps = apps.map(app => app.title).join(', ');
