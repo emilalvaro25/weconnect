@@ -1090,7 +1090,6 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const { data, error } = await supabase
         .from('apps')
         .select('*')
-        .eq('user_email', user.email)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
