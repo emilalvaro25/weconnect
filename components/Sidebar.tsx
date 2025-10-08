@@ -151,6 +151,9 @@ export default function Sidebar() {
                         </option>
                       ))}
                     </select>
+                    <p className="description-text" style={{ marginTop: '0' }}>
+                      The new voice will be applied on your next call.
+                    </p>
                   </label>
                 </fieldset>
                 <div className="persona-actions">
