@@ -314,42 +314,6 @@ export const businessAssistantTools: FunctionCall[] = [
     isEnabled: true,
     scheduling: FunctionResponseScheduling.INTERRUPT,
   },
-  {
-    name: 'save_and_email_csr_training',
-    description: "Saves a piece of text as CSR training material and emails a copy of it to the current user. This is for improving the AI's customer service skills.",
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        training_text: {
-          type: 'STRING',
-          description: 'The content of the training material to be saved and emailed.',
-        },
-        email_subject: {
-          type: 'STRING',
-          description: 'The subject line for the email being sent to the user.',
-        },
-      },
-      required: ['training_text', 'email_subject'],
-    },
-    isEnabled: true,
-    scheduling: FunctionResponseScheduling.INTERRUPT,
-  },
-  {
-    name: 'save_csr_training',
-    description: "Saves a piece of text as CSR training material to improve the AI's customer service skills. This does not email the user.",
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        training_text: {
-          type: 'STRING',
-          description: 'The content of the training material to be saved.',
-        },
-      },
-      required: ['training_text'],
-    },
-    isEnabled: true,
-    scheduling: FunctionResponseScheduling.INTERRUPT,
-  },
 ];
 
 export type Template =
@@ -381,14 +345,13 @@ export const useUI = create<{
   isWhatsAppModalOpen: boolean;
   showWhatsAppModal: () => void;
   hideWhatsAppModal: () => void;
+  isAddAppModalOpen: boolean;
+  showAddAppModal: () => void;
+  hideAddAppModal: () => void;
   snackbarMessage: string | null;
   showSnackbar: (message: string | null) => void;
   editingImage: { data: string; mimeType: string } | null;
   setEditingImage: (image: { data: string; mimeType: string } | null) => void;
-  // Fix: Add state management for the AddAppModal and AppViewer.
-  isAddAppModalOpen: boolean;
-  showAddAppModal: () => void;
-  hideAddAppModal: () => void;
   viewingAppUrl: string | null;
   setViewingAppUrl: (url: string | null) => void;
 }>(set => ({
@@ -400,14 +363,13 @@ export const useUI = create<{
   isWhatsAppModalOpen: false,
   showWhatsAppModal: () => set({ isWhatsAppModalOpen: true }),
   hideWhatsAppModal: () => set({ isWhatsAppModalOpen: false }),
+  isAddAppModalOpen: false,
+  showAddAppModal: () => set({ isAddAppModalOpen: true }),
+  hideAddAppModal: () => set({ isAddAppModalOpen: false }),
   snackbarMessage: null,
   showSnackbar: (message: string | null) => set({ snackbarMessage: message }),
   editingImage: null,
   setEditingImage: image => set({ editingImage: image }),
-  // Fix: Add state management for the AddAppModal and AppViewer.
-  isAddAppModalOpen: false,
-  showAddAppModal: () => set({ isAddAppModalOpen: true }),
-  hideAddAppModal: () => set({ isAddAppModalOpen: false }),
   viewingAppUrl: null,
   setViewingAppUrl: url => set({ viewingAppUrl: url }),
 }));
@@ -593,7 +555,6 @@ const defaultUserSettings = {
   voice: 'Aoede',
   memories: [],
   relevantMemories: [],
-  csrTraining: [],
 };
 
 /**
@@ -607,7 +568,6 @@ export const useUserSettings = create(
     voice: string;
     memories: string[];
     relevantMemories: string[];
-    csrTraining: string[];
     loadUserData: (userEmail: string) => Promise<void>;
     setLogoUrl: (url: string) => Promise<void>;
     savePersona: (name: string, description: string) => Promise<void>;
@@ -618,244 +578,250 @@ export const useUserSettings = create(
     resetToDefaults: () => void;
     seedInitialKnowledge: () => Promise<void>;
   }>(
-    (set, get) => ({
-      ...defaultUserSettings,
-      loadUserData: async (userEmail: string) => {
-        try {
-          // Fetch user settings
-          const { data, error } = await supabase
+    (set, get) => {
+      // Helper function to robustly save user settings
+      const upsertUserSettings = async (userEmail: string, settings: object) => {
+        const { data, error: selectError } = await supabase
+          .from('user_settings')
+          .select('user_email')
+          .eq('user_email', userEmail)
+          .maybeSingle();
+    
+        if (selectError) throw selectError;
+    
+        if (data) {
+          // Row exists, update it
+          const { error: updateError } = await supabase
             .from('user_settings')
-            .select('voice, persona_name, roles_and_description, logo_url')
-            .eq('user_email', userEmail)
-            .single();
+            .update(settings)
+            .eq('user_email', userEmail);
+          if (updateError) throw updateError;
+        } else {
+          // No row exists, insert a complete new one
+          const currentState = get();
+          const payload = {
+            user_email: userEmail,
+            persona_name: currentState.personaName,
+            roles_and_description: currentState.rolesAndDescription,
+            voice: currentState.voice,
+            logo_url: currentState.logoUrl,
+            ...settings, // Overwrite with the new settings being saved
+          };
+          const { error: insertError } = await supabase
+            .from('user_settings')
+            .insert(payload);
+          if (insertError) throw insertError;
+        }
+      };
 
-          if (data) {
-            // User settings exist, load them
-            const settingsUpdate: {
-              voice?: string;
-              personaName?: string;
-              rolesAndDescription?: string;
-              logoUrl?: string;
-            } = {};
-            if (data.voice) settingsUpdate.voice = data.voice;
-            if (data.persona_name)
-              settingsUpdate.personaName = data.persona_name;
-            if (data.roles_and_description)
-              settingsUpdate.rolesAndDescription = data.roles_and_description;
-            if (data.logo_url) settingsUpdate.logoUrl = data.logo_url;
-            set(settingsUpdate);
-          } else if (error && error.code === 'PGRST116') {
-            // No settings found, this is a new user. Create default settings.
-            console.log(`No settings found for ${userEmail}, creating defaults.`);
-            const { error: insertError } = await supabase
+      return {
+        ...defaultUserSettings,
+        loadUserData: async (userEmail: string) => {
+          try {
+            // Fetch user settings
+            const { data, error } = await supabase
               .from('user_settings')
-              .insert({
-                user_email: userEmail,
-                persona_name: defaultUserSettings.personaName,
-                roles_and_description:
-                  defaultUserSettings.rolesAndDescription,
-                voice: defaultUserSettings.voice,
-                logo_url: defaultUserSettings.logoUrl,
-              });
-
-            if (insertError) {
-              console.error(
-                'Error creating default user settings:',
-                insertError,
-              );
-            } else {
-              // Set the state to the defaults since we just created them
-              get().resetToDefaults();
+              .select('voice, persona_name, roles_and_description, logo_url')
+              .eq('user_email', userEmail)
+              .single();
+  
+            if (data) {
+              // User settings exist, load them
+              const settingsUpdate: {
+                voice?: string;
+                personaName?: string;
+                rolesAndDescription?: string;
+                logoUrl?: string;
+              } = {};
+              if (data.voice) settingsUpdate.voice = data.voice;
+              if (data.persona_name)
+                settingsUpdate.personaName = data.persona_name;
+              if (data.roles_and_description)
+                settingsUpdate.rolesAndDescription = data.roles_and_description;
+              if (data.logo_url) settingsUpdate.logoUrl = data.logo_url;
+              set(settingsUpdate);
+            } else if (error && error.code === 'PGRST116') {
+              // No settings found, this is a new user. Create default settings.
+              console.log(`No settings found for ${userEmail}, creating defaults.`);
+              const { error: insertError } = await supabase
+                .from('user_settings')
+                .insert({
+                  user_email: userEmail,
+                  persona_name: defaultUserSettings.personaName,
+                  roles_and_description:
+                    defaultUserSettings.rolesAndDescription,
+                  voice: defaultUserSettings.voice,
+                  logo_url: defaultUserSettings.logoUrl,
+                });
+  
+              if (insertError) {
+                console.error(
+                  'Error creating default user settings:',
+                  insertError,
+                );
+              } else {
+                // Set the state to the defaults since we just created them
+                get().resetToDefaults();
+              }
+            } else if (error) {
+              // Some other error occurred
+              console.error('Error fetching user settings:', error);
             }
-          } else if (error) {
-            // Some other error occurred
-            console.error('Error fetching user settings:', error);
-          }
-
-          // Fetch memories
-          const { data: memoriesData, error: memoriesError } = await supabase
-            .from('memories')
-            .select('memory_text')
-            .eq('user_email', userEmail)
-            .order('created_at', { ascending: true });
-
-          if (memoriesError) {
-            console.error('Error fetching memories:', memoriesError);
-          } else if (memoriesData) {
-            set({ memories: memoriesData.map(m => m.memory_text) });
-          }
-          
-          // Fetch CSR training if user is csr@aitekchat.com
-          if (userEmail === 'csr@aitekchat.com') {
-            const { data: trainingData, error: trainingError } = await supabase
-              .from('csr_training')
-              .select('training_text')
+  
+            // Fetch memories
+            const { data: memoriesData, error: memoriesError } = await supabase
+              .from('memories')
+              .select('memory_text')
+              .eq('user_email', userEmail)
               .order('created_at', { ascending: true });
-            
-            if (trainingError) {
-              console.error('Error fetching CSR training:', trainingError);
-            } else if (trainingData) {
-              set({ csrTraining: trainingData.map(t => t.training_text) });
+  
+            if (memoriesError) {
+              console.error('Error fetching memories:', memoriesError);
+            } else if (memoriesData) {
+              set({ memories: memoriesData.map(m => m.memory_text) });
             }
-          } else {
-            set({ csrTraining: [] }); // Clear for other users
+          } catch (error) {
+            console.error('Unexpected error fetching user data:', error);
           }
-        } catch (error) {
-          console.error('Unexpected error fetching user data:', error);
-        }
-      },
-      resetToDefaults: () => set(defaultUserSettings),
-      setLogoUrl: async (url: string) => {
-        set({ logoUrl: url });
-        const { user } = useAuthStore.getState();
-        if (!user?.email) {
-          console.warn('Cannot save logo URL, user is not connected.');
-          return;
-        }
-
-        try {
-          const { error } = await supabase.from('user_settings').upsert({
-            user_email: user.email,
-            logo_url: url,
-          });
-
-          if (error) {
-            console.error('Error saving logo URL:', error);
-            useUI.getState().showSnackbar('Failed to save logo.');
-          } else {
+        },
+        resetToDefaults: () => set(defaultUserSettings),
+        setLogoUrl: async (url: string) => {
+          set({ logoUrl: url });
+          const { user } = useAuthStore.getState();
+          if (!user?.email) {
+            console.warn('Cannot save logo URL, user is not connected.');
+            return;
+          }
+  
+          try {
+            await upsertUserSettings(user.email, { logo_url: url });
             useUI.getState().showSnackbar('Logo updated successfully.');
+          } catch (error) {
+            console.error('Unexpected error saving logo URL:', error);
+            useUI.getState().showSnackbar('Failed to save logo.');
           }
-        } catch (error) {
-          console.error('Unexpected error saving logo URL:', error);
-        }
-      },
-      savePersona: async (name, description) => {
-        set({ personaName: name, rolesAndDescription: description }); // Optimistic update
-        const { user } = useAuthStore.getState();
-        if (!user?.email) {
-          console.warn('Cannot save persona, user is not connected.');
-          return;
-        }
-
-        try {
-          const { error } = await supabase.from('user_settings').upsert({
-            user_email: user.email,
-            persona_name: name,
-            roles_and_description: description,
-          });
-
-          if (error) throw error;
-          useUI.getState().showSnackbar('Persona saved successfully!');
-        } catch (error: any) {
-          console.error('Error saving persona:', error);
-          useUI.getState().showSnackbar(`Failed to save persona: ${error.message}`);
-        }
-      },
-      setVoice: async voice => {
-        set({ voice }); // Update state immediately for responsiveness
-        const { user } = useAuthStore.getState();
-        if (!user?.email) {
-          console.warn('Cannot save voice preference, user is not connected.');
-          return;
-        }
-
-        try {
-          const { error } = await supabase
-            .from('user_settings')
-            .upsert({ user_email: user.email, voice });
-
-          if (error) throw error;
-          useUI.getState().showSnackbar('Voice updated successfully.');
-        } catch (error: any) {
-          console.error('Error saving voice preference:', error);
-          useUI.getState().showSnackbar(`Failed to save voice: ${error.message}`);
-        }
-      },
-      addMemory: async (memoryText: string) => {
-        const { user } = useAuthStore.getState();
-        if (!user?.email) {
-          console.warn('Cannot save memory, user is not connected.');
-          useUI.getState().showSnackbar('Error: User not connected.');
-          return;
-        }
-        try {
-          const ai = new GoogleGenAI({
-            apiKey: process.env.API_KEY as string,
-          });
-          // NOTE: The provided coding guidelines do not specify the API for text embeddings.
-          // This usage is inferred based on the user request and API patterns from the guidelines.
-          // This assumes the underlying Supabase 'memories' table has an 'embedding' column of type 'vector'.
-          const result = await (ai.models as any).embedContent({
-            model: 'gemini-embedding-001',
-            content: memoryText,
-          });
-          const embedding = result.embedding; // Assuming result is { embedding: number[] }
-
-          const { error } = await supabase.from('memories').insert({
-            user_email: user.email,
-            memory_text: memoryText,
-            embedding: embedding,
-          });
-
-          if (error) {
-            throw error;
+        },
+        savePersona: async (name, description) => {
+          set({ personaName: name, rolesAndDescription: description }); // Optimistic update
+          const { user } = useAuthStore.getState();
+          if (!user?.email) {
+            console.warn('Cannot save persona, user is not connected.');
+            return;
           }
-
-          set(state => ({ memories: [...state.memories, memoryText] }));
-          useUI.getState().showSnackbar('Memory saved and indexed successfully!');
-        } catch (error) {
-          console.error('Error saving or embedding memory:', error);
-          useUI.getState().showSnackbar('Error saving memory.');
-        }
-      },
-      findAndUpdateRelevantMemories: async (query: string) => {
-        const { user } = useAuthStore.getState();
-        const { memories } = get();
-        // Don't search if there's no user or no memories to search through.
-        if (!user?.email || memories.length === 0) {
-          set({ relevantMemories: [] });
-          return;
-        }
-
-        try {
-          const ai = new GoogleGenAI({
-            apiKey: process.env.API_KEY as string,
-          });
-          // 1. Embed the user's query
-          const result = await (ai.models as any).embedContent({
-            model: 'gemini-embedding-001',
-            content: query,
-          });
-          const embedding = result.embedding;
-
-          // 2. Call a Supabase RPC to find matching memories
-          // This requires a `match_memories` function to be created in your Supabase SQL editor.
-          const { data, error } = await supabase.rpc('match_memories', {
-            query_embedding: embedding,
-            match_threshold: 0.75, // Adjust this threshold as needed
-            match_count: 5,
-            user_email_arg: user.email,
-          });
-
-          if (error) {
-            throw error;
+  
+          try {
+            await upsertUserSettings(user.email, {
+              persona_name: name,
+              roles_and_description: description,
+            });
+            useUI.getState().showSnackbar('Persona saved successfully!');
+          } catch (error: any) {
+            console.error('Error saving persona:', error);
+            useUI.getState().showSnackbar(`Failed to save persona: ${error.message}`);
           }
-
-          if (data && data.length > 0) {
-            set({ relevantMemories: data.map((m: any) => m.memory_text) });
-          } else {
+        },
+        setVoice: async voice => {
+          set({ voice }); // Update state immediately for responsiveness
+          const { user } = useAuthStore.getState();
+          if (!user?.email) {
+            console.warn('Cannot save voice preference, user is not connected.');
+            return;
+          }
+  
+          try {
+            await upsertUserSettings(user.email, { voice });
+            useUI.getState().showSnackbar('Voice updated successfully.');
+          } catch (error: any)
+          {
+            console.error('Error saving voice preference:', error);
+            useUI.getState().showSnackbar(`Failed to save voice: ${error.message}`);
+          }
+        },
+        addMemory: async (memoryText: string) => {
+          const { user } = useAuthStore.getState();
+          if (!user?.email) {
+            console.warn('Cannot save memory, user is not connected.');
+            useUI.getState().showSnackbar('Error: User not connected.');
+            return;
+          }
+          try {
+            const ai = new GoogleGenAI({
+              apiKey: process.env.API_KEY as string,
+            });
+            // NOTE: The provided coding guidelines do not specify the API for text embeddings.
+            // This usage is inferred based on the user request and API patterns from the guidelines.
+            // This assumes the underlying Supabase 'memories' table has an 'embedding' column of type 'vector'.
+            const result = await (ai.models as any).embedContent({
+              model: 'gemini-embedding-001',
+              content: memoryText,
+            });
+            const embedding = result.embedding; // Assuming result is { embedding: number[] }
+  
+            const { error } = await supabase.from('memories').insert({
+              user_email: user.email,
+              memory_text: memoryText,
+              embedding: embedding,
+            });
+  
+            if (error) {
+              throw error;
+            }
+  
+            set(state => ({ memories: [...state.memories, memoryText] }));
+            useUI.getState().showSnackbar('Memory saved and indexed successfully!');
+          } catch (error) {
+            console.error('Error saving or embedding memory:', error);
+            useUI.getState().showSnackbar('Error saving memory.');
+          }
+        },
+        findAndUpdateRelevantMemories: async (query: string) => {
+          const { user } = useAuthStore.getState();
+          const { memories } = get();
+          // Don't search if there's no user or no memories to search through.
+          if (!user?.email || memories.length === 0) {
             set({ relevantMemories: [] });
+            return;
           }
-        } catch (error) {
-          console.error('Error finding relevant memories:', error);
-          set({ relevantMemories: [] }); // Clear on error
-        }
-      },
-      seedInitialKnowledge: async () => {
-        const { user } = useAuthStore.getState();
-        if (!user?.email) return;
-
-        const knowledgeText = `**G1 Humanoid Robot: Core Capabilities & Use Cases**
+  
+          try {
+            const ai = new GoogleGenAI({
+              apiKey: process.env.API_KEY as string,
+            });
+            // 1. Embed the user's query
+            const result = await (ai.models as any).embedContent({
+              model: 'gemini-embedding-001',
+              content: query,
+            });
+            const embedding = result.embedding;
+  
+            // 2. Call a Supabase RPC to find matching memories
+            // This requires a `match_memories` function to be created in your Supabase SQL editor.
+            const { data, error } = await supabase.rpc('match_memories', {
+              query_embedding: embedding,
+              match_threshold: 0.75, // Adjust this threshold as needed
+              match_count: 5,
+              user_email_arg: user.email,
+            });
+  
+            if (error) {
+              throw error;
+            }
+  
+            if (data && data.length > 0) {
+              set({ relevantMemories: data.map((m: any) => m.memory_text) });
+            } else {
+              set({ relevantMemories: [] });
+            }
+          } catch (error) {
+            console.error('Error finding relevant memories:', error);
+            set({ relevantMemories: [] }); // Clear on error
+          }
+        },
+        seedInitialKnowledge: async () => {
+          const { user } = useAuthStore.getState();
+          if (!user?.email) return;
+  
+          const knowledgeText = `**G1 Humanoid Robot: Core Capabilities & Use Cases**
 
 This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capable of performing:
 
@@ -869,80 +835,68 @@ This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capabl
 8.  **Agricultural Monitoring:** You could navigate farm fields to monitor crop health, identify pests, and even perform delicate tasks like selective harvesting, using your advanced mobility and manipulation skills.
 9.  **Retail Stocking and Inventory:** You can autonomously move through a store, use your sensors to identify low-stock items on shelves, and retrieve products from the stockroom to replenish them.
 10. **Procedural Training:** Using your imitation learning, you can "watch" a human expert perform a complex manual task and then replicate it perfectly, serving as a tireless training platform for new employees.`;
-
-        // Check if this knowledge already exists in memory state to avoid DB query if possible
-        const { memories } = get();
-        if (memories.includes(knowledgeText)) {
-          // It's already loaded in the state, no need to do anything.
-          return;
-        }
-
-        // Check the database
-        const { error, count } = await supabase
-          .from('memories')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_email', user.email)
-          .eq('memory_text', knowledgeText);
-
-        if (error) {
-          console.error('Error checking for existing knowledge:', error);
-          return;
-        }
-
-        if (count === 0) {
-          // The knowledge does not exist, so let's add it.
-          await get().addMemory(knowledgeText);
-          console.log(
-            "Seeded G1 Humanoid Robot capabilities into agent's memory.",
-          );
-        }
-      },
-      getSystemPrompt: () => {
-        const { rolesAndDescription, relevantMemories, csrTraining } = get();
-        const { user } = useAuthStore.getState();
-        const { apps, knowledgeBase } = useAppsStore.getState();
-        const { globalRules } = useGlobalRulesStore.getState();
-
-        const csrTrainingSection =
-          user?.email === 'csr@aitekchat.com' && csrTraining.length > 0
-            ? `
----
-CSR TRAINING MATERIAL (TOP PRIORITY):
-This is special training data to make you an excellent call center agent. You MUST integrate this knowledge deeply into your responses.
-${csrTraining.map(t => `- ${t}`).join('\n')}
----
-`
-            : '';
-
-        const globalRulesSection =
-          globalRules.length > 0
-            ? `
+  
+          // Check if this knowledge already exists in memory state to avoid DB query if possible
+          const { memories } = get();
+          if (memories.includes(knowledgeText)) {
+            // It's already loaded in the state, no need to do anything.
+            return;
+          }
+  
+          // Check the database
+          const { error, count } = await supabase
+            .from('memories')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_email', user.email)
+            .eq('memory_text', knowledgeText);
+  
+          if (error) {
+            console.error('Error checking for existing knowledge:', error);
+            return;
+          }
+  
+          if (count === 0) {
+            // The knowledge does not exist, so let's add it.
+            await get().addMemory(knowledgeText);
+            console.log(
+              "Seeded G1 Humanoid Robot capabilities into agent's memory.",
+            );
+          }
+        },
+        getSystemPrompt: () => {
+          const { rolesAndDescription, relevantMemories } = get();
+          const { apps, knowledgeBase } = useAppsStore.getState();
+          const { globalRules } = useGlobalRulesStore.getState();
+  
+          const globalRulesSection =
+            globalRules.length > 0
+              ? `
 ---
 GLOBAL RULES (FROM SUPER ADMIN - NON-NEGOTIABLE):
 These are core directives that override all other instructions. You MUST adhere to them at all times.
 ${globalRules.map(rule => `- ${rule}`).join('\n')}
 ---
 `
-            : '';
-
-        // Helper to format knowledge for the prompt
-        const formatKnowledge = (knowledge: AppKnowledge | string): string => {
-            if (typeof knowledge === 'string') {
-              return knowledge; // Fallback for old/failed knowledge generation
-            }
-            // Format the structured knowledge into a readable block for the AI
-            return `
+              : '';
+  
+          // Helper to format knowledge for the prompt
+          const formatKnowledge = (knowledge: AppKnowledge | string): string => {
+              if (typeof knowledge === 'string') {
+                return knowledge; // Fallback for old/failed knowledge generation
+              }
+              // Format the structured knowledge into a readable block for the AI
+              return `
   - **Core Purpose:** ${knowledge.corePurpose}
   - **Key Features:** ${knowledge.keyFeatures.join(', ')}.
   - **Common Use Cases:** ${knowledge.useCases.join('; ')}.
   - **How to Use:** Interacts via ${knowledge.interactionModel}.
   - **Good for:** ${knowledge.targetAudience}.
   - **Example Questions to Answer:** "${knowledge.potentialQueries.join('", "')}"`;
-          };
-      
-        const appsSection =
-          apps.length > 0
-            ? `
+            };
+        
+          const appsSection =
+            apps.length > 0
+              ? `
 ---
 USER'S INSTALLED APPLICATIONS (YOUR ECOSYSTEM):
 This is the exclusive list of applications available to you and Boss Jo. You are a super AGI with deep, expert-level knowledge of these tools. Your knowledge comes from a comprehensive analysis of each application's functionality. You MUST know everything about them. When discussing applications, recommending tools, or providing solutions, you MUST exclusively refer to the apps from this list and use your detailed knowledge.
@@ -961,21 +915,22 @@ ${apps
   .join('\n')}
 ---
 `
-            : '';
-      
-        const memorySection =
-          relevantMemories.length > 0
-            ? `
+              : '';
+        
+          const memorySection =
+            relevantMemories.length > 0
+              ? `
 ---
 CONTEXTUALLY RELEVANT MEMORIES & KNOWLEDGE:
 You have retrieved the following information from your long-term memory because it seems highly relevant to our current conversation. You MUST use this context to inform your response and demonstrate your understanding of previous interactions.
 ${relevantMemories.map(m => `- ${m}`).join('\n')}
 ---
 `
-            : '';
-        return `${BASE_SYSTEM_PROMPT}${csrTrainingSection}${globalRulesSection}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
-      },
-    }),
+              : '';
+          return `${BASE_SYSTEM_PROMPT}${globalRulesSection}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
+        },
+      }
+    },
     {
       name: 'user-settings-storage', // unique name for localStorage key
     },
@@ -1335,7 +1290,7 @@ export const useTools = create<{
  * Apps
  */
 export interface App {
-  id: number;
+  id: string;
   user_email: string | null;
   title: string;
   description?: string;
@@ -1353,10 +1308,54 @@ export interface AppKnowledge {
   potentialQueries: string[];
 }
 
+const hardcodedApps: App[] = [
+  {
+    id: '999996',
+    user_email: null,
+    title: 'Bots R Here',
+    description: 'Human realistic avatar.',
+    app_url: 'https://botsrhere.online/index.html',
+    logo_url:
+      'https://i0.wp.com/bots-r-here.com/wp-content/uploads/2024/12/Ontwerp-zonder-titel.png?resize=300%2C300',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999997',
+    user_email: null,
+    title: 'Movie App',
+    description: 'A free movie streaming application for all users.',
+    app_url: 'https://panyero.website/movie/index.html',
+    logo_url:
+      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-33-32.png',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999999',
+    user_email: null,
+    title: 'Translator',
+    description: 'Translate text between many languages instantly.',
+    app_url: 'https://translate-now-539403796561.us-west1.run.app',
+    logo_url:
+      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999998',
+    user_email: null,
+    title: 'Zumi',
+    description:
+      'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
+    app_url: 'https://zum-ten.vercel.app/',
+    logo_url:
+      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
+    created_at: new Date().toISOString(),
+  },
+];
+
 interface AppsState {
   apps: App[];
   isLoading: boolean;
-  knowledgeBase: Map<number, AppKnowledge | string>; // app.id -> detailed description
+  knowledgeBase: Map<string, AppKnowledge | string>; // app.id -> detailed description
   fetchApps: () => Promise<void>;
   addApp: (appData: {
     title: string;
@@ -1374,143 +1373,78 @@ export const useAppsStore = create<AppsState>((set, get) => ({
   knowledgeBase: new Map(),
   fetchApps: async () => {
     set({ isLoading: true });
+    const { user } = useAuthStore.getState();
+    if (!user) {
+      set({ apps: hardcodedApps, isLoading: false }); // Show defaults if not logged in
+      return;
+    }
     try {
-      const { user } = useAuthStore.getState();
-      let fetchedApps: App[] = [];
+      const { data, error } = await supabase
+        .from('apps')
+        .select('*')
+        .or(`user_email.eq.${user.email},user_email.is.null`)
+        .order('created_at', { ascending: false });
 
-      // Only fetch user-specific apps if a user is logged in
-      if (user?.email) {
-        const { data, error } = await supabase
-          .from('apps')
-          .select('*')
-          .eq('user_email', user.email)
-          .order('created_at', { ascending: true });
+      if (error) throw error;
 
-        if (error) throw error;
-        fetchedApps = data || [];
-      }
-
-      // Define the default apps that should always be present
-      const defaultApps: App[] = [
-        {
-          id: 999996, // New unique ID
-          user_email: null,
-          title: 'Bots R Here',
-          description: 'Human realistic avatar.',
-          app_url: 'https://botsrhere.online/index.html',
-          logo_url:
-            'https://i0.wp.com/bots-r-here.com/wp-content/uploads/2024/12/Ontwerp-zonder-titel.png?resize=300%2C300',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 999997, // Another unique ID
-          user_email: null,
-          title: 'Movie App',
-          description:
-            'A free movie streaming application for all users.',
-          app_url: 'https://panyero.website/movie/index.html',
-          logo_url:
-            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-33-32.png',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 999999, // Use a unique ID to avoid conflicts
-          user_email: null,
-          title: 'Translator',
-          description: 'Translate text between many languages instantly.',
-          app_url: 'https://translate-now-539403796561.us-west1.run.app',
-          logo_url:
-            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 999998, // Another unique ID
-          user_email: null,
-          title: 'Zumi',
-          description:
-            'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
-          app_url: 'https://zum-ten.vercel.app/',
-          logo_url:
-            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
-          created_at: new Date().toISOString(),
-        },
-      ];
-
-      const finalApps = [...fetchedApps];
-
-      // Add default apps if they are not already in the fetched list
-      defaultApps.forEach(defaultApp => {
-        const appExists = finalApps.some(
-          app => app.app_url === defaultApp.app_url,
-        );
-        if (!appExists) {
-          finalApps.unshift(defaultApp); // Add to the beginning
+      const combinedApps = [...(data || [])];
+      const dbAppTitles = new Set(data?.map(app => app.title) || []);
+      hardcodedApps.forEach(hcApp => {
+        if (!dbAppTitles.has(hcApp.title)) {
+          combinedApps.push(hcApp);
         }
       });
 
-      set({ apps: finalApps });
+      set({ apps: combinedApps, isLoading: false });
     } catch (error) {
       console.error('Error fetching apps:', error);
-      useUI.getState().showSnackbar('Failed to load apps.');
-    } finally {
-      set({ isLoading: false });
+      set({ apps: hardcodedApps, isLoading: false }); // Fallback to hardcoded
     }
   },
   addApp: async ({ title, description, app_url, logoFile }) => {
     const { user } = useAuthStore.getState();
     const { showSnackbar, hideAddAppModal } = useUI.getState();
+
     if (!user?.email) {
-      console.warn('Cannot add app, user is not connected.');
       showSnackbar('You must be logged in to add an app.');
       return;
     }
 
     try {
-      // 1. Upload logo to Supabase Storage
+      // 1. Upload logo
       const fileExt = logoFile.name.split('.').pop();
-      const filePath = `public/${Date.now()}.${fileExt}`;
+      const filePath = `${user.email}/${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage
         .from('app_logos')
         .upload(filePath, logoFile);
 
-      if (uploadError) {
-        throw new Error(`Logo upload failed: ${uploadError.message}`);
-      }
+      if (uploadError) throw uploadError;
 
-      // 2. Get public URL for the uploaded logo
+      // 2. Get public URL
       const { data: urlData } = supabase.storage
         .from('app_logos')
         .getPublicUrl(filePath);
 
-      if (!urlData) {
-        throw new Error('Could not get public URL for the logo.');
-      }
       const logo_url = urlData.publicUrl;
 
-      // 3. Insert app metadata into the 'apps' table
-      const { data: newApp, error: insertError } = await supabase
-        .from('apps')
-        .insert({
-          user_email: user.email,
-          title,
-          description,
-          app_url,
-          logo_url,
-        })
-        .select()
-        .single();
-      
-      if (insertError) {
-        throw new Error(`Failed to save app: ${insertError.message}`);
-      }
-      
-      // 4. Update local state
-      set(state => ({ apps: [...state.apps, newApp] }));
-      showSnackbar('App added successfully!');
+      // 3. Insert into DB
+      const { error: insertError } = await supabase.from('apps').insert({
+        user_email: user.email,
+        title,
+        description,
+        app_url,
+        logo_url,
+      });
+
+      if (insertError) throw insertError;
+
+      // 4. Update state
+      await get().fetchApps();
       hideAddAppModal();
+      showSnackbar('App added successfully!');
     } catch (error: any) {
       console.error('Error adding app:', error);
-      showSnackbar(error.message || 'An unexpected error occurred.');
+      showSnackbar(`Failed to add app: ${error.message}`);
     }
   },
   generateAndStoreAppKnowledge: async () => {
@@ -1611,6 +1545,7 @@ Generate a JSON object that strictly follows the provided schema.`;
     }
   },
   clearAppsForLogout: () => {
+    // On logout, just reset knowledge, apps list stays the same.
     set({ apps: [], knowledgeBase: new Map(), isLoading: false });
   },
 }));
@@ -1619,8 +1554,8 @@ Generate a JSON object that strictly follows the provided schema.`;
  * Seen Apps
  */
 interface SeenAppsState {
-  seenAppIds: number[];
-  addSeenAppIds: (ids: number[]) => void;
+  seenAppIds: string[];
+  addSeenAppIds: (ids: string[]) => void;
   clearSeenApps: () => void;
 }
 
