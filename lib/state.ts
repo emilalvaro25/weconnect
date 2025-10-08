@@ -403,9 +403,11 @@ export const useAuthStore = create<AuthState>(set => ({
     set({ session, user: session?.user ?? null, loading: false });
   },
   signInWithGoogle: async () => {
+    const { redirectUri } = useGoogleIntegrationStore.getState();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
+        redirectTo: redirectUri,
         scopes: [
           'https://www.googleapis.com/auth/userinfo.email',
           'https://www.googleapis.com/auth/userinfo.profile',
