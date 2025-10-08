@@ -246,23 +246,6 @@ export default function Sidebar() {
                       </p>
                     )}
                   </label>
-                  <label>
-                    Client Secret
-                    <input
-                      type="password"
-                      placeholder="Enter your client secret"
-                      value={googleIntegration.clientSecret}
-                      onChange={e =>
-                        googleIntegration.setClientSecret(e.target.value)
-                      }
-                      aria-invalid={!!googleIntegration.errors.clientSecret}
-                    />
-                    {googleIntegration.errors.clientSecret && (
-                      <p className="validation-error">
-                        {googleIntegration.errors.clientSecret}
-                      </p>
-                    )}
-                  </label>
                 </fieldset>
                 <div className="credential-actions">
                   {googleIntegration.isConfigured ? (
