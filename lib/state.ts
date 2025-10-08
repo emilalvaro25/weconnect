@@ -436,14 +436,10 @@ export const useAuthStore = create<AuthState>(set => ({
       console.error('Sign out error:', error);
       useUI.getState().showSnackbar(`Sign out failed: ${error.message}`);
     }
-    // onAuthStateChange will also fire, but we clear state here to be immediate and robust.
-    useUserSettings.getState().resetToDefaults();
-    useLogStore.getState().clearTurnsForLogout();
-    useSeenAppsStore.getState().clearSeenApps();
-    useAppsStore.getState().clearAppsForLogout();
-    useTools.getState().resetTools();
-    useWhatsAppIntegrationStore.getState().clearUserConnection();
-    set({ session: null, user: null, loading: false });
+    // After supabase.auth.signOut() completes, the onAuthStateChange listener
+    // in App.tsx will be triggered. That listener is the single source of truth
+    // for clearing user-related state and redirecting to the login page.
+    // Manually clearing state here is redundant and can cause race conditions.
   },
   resetPassword: async email => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -1531,7 +1527,9 @@ export const useAppsStore = create<AppsState>((set, get) => ({
     const { apps, knowledgeBase } = get();
     // Only process apps that don't have structured knowledge yet.
     const appsToProcess = apps.filter(
-      app => !knowledgeBase.has(app.id) || typeof knowledgeBase.get(app.id) === 'string',
+      app =>
+        !knowledgeBase.has(app.id) ||
+        typeof knowledgeBase.get(app.id) === 'string',
     );
 
     if (appsToProcess.length === 0) {
@@ -1544,7 +1542,10 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const knowledgeSchema = {
         type: Type.OBJECT,
         properties: {
-          corePurpose: { type: Type.STRING, description: 'The primary goal or problem the app solves.' },
+          corePurpose: {
+            type: Type.STRING,
+            description: 'The primary goal or problem the app solves.',
+          },
           keyFeatures: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
@@ -1557,7 +1558,8 @@ export const useAppsStore = create<AppsState>((set, get) => ({
           },
           interactionModel: {
             type: Type.STRING,
-            description: 'How the user interacts with the app (e.g., voice, text, GUI).',
+            description:
+              'How the user interacts with the app (e.g., voice, text, GUI).',
           },
           targetAudience: {
             type: Type.STRING,
@@ -1569,59 +1571,79 @@ export const useAppsStore = create<AppsState>((set, get) => ({
             description: 'Example questions a user might ask about this app.',
           },
         },
-        required: ['corePurpose', 'keyFeatures', 'useCases', 'interactionModel', 'targetAudience', 'potentialQueries'],
+        required: [
+          'corePurpose',
+          'keyFeatures',
+          'useCases',
+          'interactionModel',
+          'targetAudience',
+          'potentialQueries',
+        ],
       };
 
-      const knowledgePromises = appsToProcess.map(async app => {
-        const prompt = `Analyze the following application and generate a structured knowledge entry in JSON format. Imagine you have deep expertise with this app by visiting its URL. Your analysis will power a "super AGI" assistant, so be detailed, accurate, and insightful.
+      const batchKnowledgeSchema = {
+        type: Type.ARRAY,
+        items: knowledgeSchema,
+      };
 
-**Application Details:**
-- **Title:** ${app.title}
-- **URL:** ${app.app_url}
-- **User-provided Description:** ${app.description || 'Not provided.'}
+      const prompt = `Analyze the following list of applications and generate a structured knowledge entry in JSON format for each one. Imagine you have deep expertise with each app by visiting its URL. Your analysis will power a "super AGI" assistant, so be detailed, accurate, and insightful. Return a single JSON array where each element corresponds to an app in the input list.
 
-Generate a JSON object that strictly follows the provided schema.`;
+**Application List:**
+${appsToProcess.map(app => `- **Title:** ${app.title}\n  - **URL:** ${app.app_url}\n  - **Description:** ${app.description || 'Not provided.'}`).join('\n\n')}
 
-        try {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                  responseMimeType: 'application/json',
-                  responseSchema: knowledgeSchema,
-                },
-              });
-      
-              const jsonText = response.text.trim();
-              const knowledgeObject = JSON.parse(jsonText);
-              return {
-                id: app.id,
-                knowledge: knowledgeObject as AppKnowledge,
-              };
-        } catch (e) {
-            console.error(`Failed to generate structured knowledge for ${app.title}, falling back to text.`, e);
-            // Fallback to simpler text generation if JSON fails
-            const fallbackResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: `Provide a concise, one-paragraph summary of the app "${app.title}" based on its description: "${app.description}".`,
-            });
-            return {
-                id: app.id,
-                knowledge: fallbackResponse.text.trim(),
-            };
-        }
+Generate a JSON array that strictly follows the provided schema. The array must contain exactly ${appsToProcess.length} objects.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: batchKnowledgeSchema,
+        },
       });
 
-      const results = await Promise.all(knowledgePromises);
-
+      const jsonText = response.text.trim();
+      const knowledgeArray = JSON.parse(jsonText) as AppKnowledge[];
       const newKnowledge = new Map(knowledgeBase);
-      results.forEach(result => {
-        newKnowledge.set(result.id, result.knowledge);
-      });
 
+      if (knowledgeArray.length === appsToProcess.length) {
+        appsToProcess.forEach((app, index) => {
+          newKnowledge.set(app.id, knowledgeArray[index]);
+        });
+        set({ knowledgeBase: newKnowledge });
+      } else {
+        console.error(
+          "Model didn't return the correct number of knowledge objects. Falling back to descriptions.",
+        );
+        appsToProcess.forEach(app => {
+          newKnowledge.set(
+            app.id,
+            app.description || `Knowledge for ${app.title}`,
+          );
+        });
+        set({ knowledgeBase: newKnowledge });
+      }
+    } catch (error: any) {
+      console.error(
+        'An error occurred in the knowledge generation process:',
+        error,
+      );
+      if (error.message && error.message.includes('RESOURCE_EXHAUSTED')) {
+        useUI
+          .getState()
+          .showSnackbar(
+            'AI analysis quota reached. Using basic app descriptions.',
+          );
+      }
+      // Fallback logic: use basic descriptions for all failed apps
+      const newKnowledge = new Map(knowledgeBase);
+      appsToProcess.forEach(app => {
+        newKnowledge.set(
+          app.id,
+          app.description || `Knowledge for ${app.title}`,
+        );
+      });
       set({ knowledgeBase: newKnowledge });
-    } catch (error) {
-      console.error('An error occurred in the knowledge generation process:', error);
     }
   },
   clearAppsForLogout: () => {
