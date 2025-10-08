@@ -1098,6 +1098,12 @@ form button:first-of-type {
   flex-shrink: 0;
 }
 
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sidebar-header h3 {
   font-size: 20px;
   color: var(--text-primary);

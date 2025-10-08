@@ -71,9 +71,22 @@ export default function Sidebar() {
       <aside className={c('sidebar', { open: isSidebarOpen })}>
         <div className="sidebar-header">
           <h3>Settings</h3>
-          <button onClick={toggleSidebar} className="close-button">
-            <span className="icon">close</span>
-          </button>
+          <div className="sidebar-header-actions">
+            <button
+              onClick={signOut}
+              className="icon-button"
+              aria-label="Sign out"
+            >
+              <span className="material-symbols-outlined">logout</span>
+            </button>
+            <button
+              onClick={toggleSidebar}
+              className="icon-button"
+              aria-label="Close settings"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
         </div>
 
         <div className="sidebar-tabs">
@@ -419,9 +432,6 @@ export default function Sidebar() {
           <div className="user-info-card">
             <p>Signed in as</p>
             <strong>{user?.email}</strong>
-            <button onClick={signOut} className="sign-out-button">
-              Sign Out
-            </button>
           </div>
         </div>
       </aside>

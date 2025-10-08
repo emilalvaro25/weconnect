@@ -355,7 +355,7 @@ export const useUI = create<{
   viewingAppUrl: string | null;
   setViewingAppUrl: (url: string | null) => void;
 }>(set => ({
-  isSidebarOpen: true,
+  isSidebarOpen: false,
   toggleSidebar: () => set(state => ({ isSidebarOpen: !state.isSidebarOpen })),
   isVoiceCallActive: false,
   showVoiceCall: () => set({ isVoiceCallActive: true }),
@@ -433,12 +433,8 @@ export const useAuthStore = create<AuthState>(set => ({
     if (error) {
       console.error('Sign out error:', error);
       useUI.getState().showSnackbar(`Sign out failed: ${error.message}`);
-    } else {
-      // The onAuthStateChange listener is the primary handler for state cleanup.
-      // We can set session to null here for immediate UI feedback, but the listener
-      // will also handle it.
-      set({ session: null, user: null });
     }
+    // No local state change here. onAuthStateChange will handle it.
   },
   resetPassword: async email => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -959,11 +955,10 @@ interface GoogleIntegrationState {
 export const useGoogleIntegrationStore = create(
   persist<GoogleIntegrationState>(
     (set, get) => ({
-      clientId:
-        '73350400049-lak1uj65sti1dknrrfh92t43lvti83da.apps.googleusercontent.com',
-      clientSecret: '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',
+      clientId: '',
+      clientSecret: '',
       redirectUri: 'https://voice.kithai.site',
-      isConfigured: true,
+      isConfigured: false,
       isValidated: false,
       errors: {},
       setClientId: id => set({ clientId: id, isValidated: false, errors: {} }),
@@ -1545,8 +1540,8 @@ Generate a JSON object that strictly follows the provided schema.`;
     }
   },
   clearAppsForLogout: () => {
-    // On logout, just reset knowledge, apps list stays the same.
-    set({ apps: [], knowledgeBase: new Map(), isLoading: false });
+    // On logout, reset knowledge and revert to the default hardcoded apps
+    set({ knowledgeBase: new Map(), apps: hardcodedApps, isLoading: false });
   },
 }));
 
