@@ -349,6 +349,10 @@ export const useUI = create<{
   showSnackbar: (message: string | null) => void;
   editingImage: { data: string; mimeType: string } | null;
   setEditingImage: (image: { data: string; mimeType: string } | null) => void;
+  // Fix: Add state management for the AddAppModal and AppViewer.
+  isAddAppModalOpen: boolean;
+  showAddAppModal: () => void;
+  hideAddAppModal: () => void;
   viewingAppUrl: string | null;
   setViewingAppUrl: (url: string | null) => void;
 }>(set => ({
@@ -364,6 +368,10 @@ export const useUI = create<{
   showSnackbar: (message: string | null) => set({ snackbarMessage: message }),
   editingImage: null,
   setEditingImage: image => set({ editingImage: image }),
+  // Fix: Add state management for the AddAppModal and AppViewer.
+  isAddAppModalOpen: false,
+  showAddAppModal: () => set({ isAddAppModalOpen: true }),
+  hideAddAppModal: () => set({ isAddAppModalOpen: false }),
   viewingAppUrl: null,
   setViewingAppUrl: url => set({ viewingAppUrl: url }),
 }));
@@ -1279,66 +1287,165 @@ export interface AppKnowledge {
   potentialQueries: string[];
 }
 
-const hardcodedApps: App[] = [
-  {
-    id: 999996,
-    user_email: null,
-    title: 'Bots R Here',
-    description: 'Human realistic avatar.',
-    app_url: 'https://botsrhere.online/index.html',
-    logo_url:
-      'https://i0.wp.com/bots-r-here.com/wp-content/uploads/2024/12/Ontwerp-zonder-titel.png?resize=300%2C300',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 999997,
-    user_email: null,
-    title: 'Movie App',
-    description: 'A free movie streaming application for all users.',
-    app_url: 'https://panyero.website/movie/index.html',
-    logo_url:
-      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-33-32.png',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 999999,
-    user_email: null,
-    title: 'Translator',
-    description: 'Translate text between many languages instantly.',
-    app_url: 'https://translate-now-539403796561.us-west1.run.app',
-    logo_url:
-      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 999998,
-    user_email: null,
-    title: 'Zumi',
-    description:
-      'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
-    app_url: 'https://zum-ten.vercel.app/',
-    logo_url:
-      'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
-    created_at: new Date().toISOString(),
-  },
-];
-
 interface AppsState {
   apps: App[];
   isLoading: boolean;
   knowledgeBase: Map<number, AppKnowledge | string>; // app.id -> detailed description
   fetchApps: () => Promise<void>;
+  addApp: (appData: {
+    title: string;
+    description?: string;
+    app_url: string;
+    logoFile: File;
+  }) => Promise<void>;
   generateAndStoreAppKnowledge: () => Promise<void>;
   clearAppsForLogout: () => void;
 }
 
 export const useAppsStore = create<AppsState>((set, get) => ({
-  apps: hardcodedApps,
+  apps: [],
   isLoading: false,
   knowledgeBase: new Map(),
   fetchApps: async () => {
-    // Apps are hardcoded, so this just confirms loading is complete.
-    set({ isLoading: false });
+    set({ isLoading: true });
+    try {
+      const { user } = useAuthStore.getState();
+      let fetchedApps: App[] = [];
+
+      // Only fetch user-specific apps if a user is logged in
+      if (user?.email) {
+        const { data, error } = await supabase
+          .from('apps')
+          .select('*')
+          .eq('user_email', user.email)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        fetchedApps = data || [];
+      }
+
+      // Define the default apps that should always be present
+      const defaultApps: App[] = [
+        {
+          id: 999996, // New unique ID
+          user_email: null,
+          title: 'Bots R Here',
+          description: 'Human realistic avatar.',
+          app_url: 'https://botsrhere.online/index.html',
+          logo_url:
+            'https://i0.wp.com/bots-r-here.com/wp-content/uploads/2024/12/Ontwerp-zonder-titel.png?resize=300%2C300',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 999997, // Another unique ID
+          user_email: null,
+          title: 'Movie App',
+          description:
+            'A free movie streaming application for all users.',
+          app_url: 'https://panyero.website/movie/index.html',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-33-32.png',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 999999, // Use a unique ID to avoid conflicts
+          user_email: null,
+          title: 'Translator',
+          description: 'Translate text between many languages instantly.',
+          app_url: 'https://translate-now-539403796561.us-west1.run.app',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/file_00000000258861fa97602bcea8469e73.png',
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 999998, // Another unique ID
+          user_email: null,
+          title: 'Zumi',
+          description:
+            'A meeting app like Zoom with real-time voice translation. Attendees can select their desired language and hear the speaker translated in real-time voice.',
+          app_url: 'https://zum-ten.vercel.app/',
+          logo_url:
+            'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
+          created_at: new Date().toISOString(),
+        },
+      ];
+
+      const finalApps = [...fetchedApps];
+
+      // Add default apps if they are not already in the fetched list
+      defaultApps.forEach(defaultApp => {
+        const appExists = finalApps.some(
+          app => app.app_url === defaultApp.app_url,
+        );
+        if (!appExists) {
+          finalApps.unshift(defaultApp); // Add to the beginning
+        }
+      });
+
+      set({ apps: finalApps });
+    } catch (error) {
+      console.error('Error fetching apps:', error);
+      useUI.getState().showSnackbar('Failed to load apps.');
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  addApp: async ({ title, description, app_url, logoFile }) => {
+    const { user } = useAuthStore.getState();
+    const { showSnackbar, hideAddAppModal } = useUI.getState();
+    if (!user?.email) {
+      console.warn('Cannot add app, user is not connected.');
+      showSnackbar('You must be logged in to add an app.');
+      return;
+    }
+
+    try {
+      // 1. Upload logo to Supabase Storage
+      const fileExt = logoFile.name.split('.').pop();
+      const filePath = `public/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from('app_logos')
+        .upload(filePath, logoFile);
+
+      if (uploadError) {
+        throw new Error(`Logo upload failed: ${uploadError.message}`);
+      }
+
+      // 2. Get public URL for the uploaded logo
+      const { data: urlData } = supabase.storage
+        .from('app_logos')
+        .getPublicUrl(filePath);
+
+      if (!urlData) {
+        throw new Error('Could not get public URL for the logo.');
+      }
+      const logo_url = urlData.publicUrl;
+
+      // 3. Insert app metadata into the 'apps' table
+      const { data: newApp, error: insertError } = await supabase
+        .from('apps')
+        .insert({
+          user_email: user.email,
+          title,
+          description,
+          app_url,
+          logo_url,
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        throw new Error(`Failed to save app: ${insertError.message}`);
+      }
+      
+      // 4. Update local state
+      set(state => ({ apps: [...state.apps, newApp] }));
+      showSnackbar('App added successfully!');
+      hideAddAppModal();
+    } catch (error: any) {
+      console.error('Error adding app:', error);
+      showSnackbar(error.message || 'An unexpected error occurred.');
+    }
   },
   generateAndStoreAppKnowledge: async () => {
     const { apps, knowledgeBase } = get();
@@ -1438,8 +1545,7 @@ Generate a JSON object that strictly follows the provided schema.`;
     }
   },
   clearAppsForLogout: () => {
-    // On logout, just reset knowledge, apps list stays the same.
-    set({ knowledgeBase: new Map(), isLoading: false });
+    set({ apps: [], knowledgeBase: new Map(), isLoading: false });
   },
 }));
 
