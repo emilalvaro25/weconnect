@@ -3,24 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 import React, { useEffect } from 'react';
-import { useAppsStore, useUI } from '../../lib/state';
+import { useAppsStore } from '../../lib/state';
 import AppCard from './AppCard';
 
 export default function AppsTab() {
   const { apps, isLoading } = useAppsStore();
-  const { showAddAppModal } = useUI();
 
   return (
     <div className="apps-tab-panel">
       <div className="apps-tab-header">
         <h4 className="sidebar-section-title">My Apps</h4>
-        <button
-          className="icon-button"
-          aria-label="Add new app"
-          onClick={showAddAppModal}
-        >
-          <span className="material-symbols-outlined">add</span>
-        </button>
       </div>
       {isLoading && <p>Loading apps...</p>}
       {!isLoading && apps.length === 0 && (

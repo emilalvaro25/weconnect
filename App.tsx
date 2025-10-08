@@ -60,7 +60,7 @@ if (typeof API_KEY !== 'string') {
  */
 function App() {
   const [showSplash, setShowSplash] = useState(true);
-  const { isVoiceCallActive, isWhatsAppModalOpen, isAddAppModalOpen } = useUI();
+  const { isVoiceCallActive, isWhatsAppModalOpen } = useUI();
   const { session, loading, setSession } = useAuthStore();
   const {
     loadUserData,
@@ -244,7 +244,6 @@ ${JSON.stringify(newApps.map(app => ({ title: app.title, description: app.descri
             even when not visible. Visibility is controlled by CSS. */}
         <VoiceCall />
         {isWhatsAppModalOpen && <WhatsAppModal />}
-        {isAddAppModalOpen && <AddAppModal />}
         <AppViewer />
         <div
           className={cn('main-ui-wrapper', {
