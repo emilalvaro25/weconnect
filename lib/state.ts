@@ -462,8 +462,8 @@ interface SupabaseIntegrationState {
 
 export const useSupabaseIntegrationStore = create<SupabaseIntegrationState>(
   () => ({
-    supabaseUrl: 'https://iydbsuzawosivjjqgwcn.supabase.co',
-    supabaseAnonKey: '******', // Masked for security
+    supabaseUrl: 'https://ockscvdpcdblgnfvociq.supabase.co',
+    supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ja3NjdmRwY2RibGduZnZvY2lxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1Nzg1NDMsImV4cCI6MjA3NTE1NDU0M30.6E8PdkGLougJjZCIyCKUZgcbSmtfDO2wYXo11lEnCuE', // Masked for security
     isConfigured: true,
   }),
 );
