@@ -36,6 +36,7 @@ import {
   useLogStore,
   useAppsStore,
   useSeenAppsStore,
+  useGlobalRulesStore,
 } from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
@@ -74,6 +75,7 @@ function App() {
   } = useLogStore();
   const { apps, fetchApps, generateAndStoreAppKnowledge } = useAppsStore();
   const { seenAppIds, addSeenAppIds, clearSeenApps } = useSeenAppsStore();
+  const { fetchGlobalRules } = useGlobalRulesStore();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -90,6 +92,7 @@ function App() {
         seedInitialKnowledge();
         loadHistory();
         fetchApps();
+        fetchGlobalRules();
       }
     });
 
@@ -102,6 +105,7 @@ function App() {
         seedInitialKnowledge();
         loadHistory();
         fetchApps();
+        fetchGlobalRules();
       } else {
         // User logged out, reset settings
         resetToDefaults();
@@ -120,6 +124,7 @@ function App() {
     fetchApps,
     clearSeenApps,
     seedInitialKnowledge,
+    fetchGlobalRules,
   ]);
 
   useEffect(() => {

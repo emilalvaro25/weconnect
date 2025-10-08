@@ -48,6 +48,60 @@ For example, if you see \`[laughs]\`, you must perform the action of laughing, b
 Text inside brackets are performance cues for your voice, NOT words to be spoken.
 Reading bracketed text is a CRITICAL FAILURE.`;
 
+/**
+ * Global Rules
+ */
+interface GlobalRulesState {
+  globalRules: string[];
+  isLoading: boolean;
+  fetchGlobalRules: () => Promise<void>;
+  addGlobalRule: (ruleText: string, adminEmail: string) => Promise<void>;
+}
+
+export const useGlobalRulesStore = create<GlobalRulesState>((set, get) => ({
+  globalRules: [],
+  isLoading: false,
+  fetchGlobalRules: async () => {
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('global_rules')
+        .select('rule_text')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      set({ globalRules: data.map(r => r.rule_text) });
+    } catch (error) {
+      console.error('Error fetching global rules:', error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+  addGlobalRule: async (ruleText, adminEmail) => {
+    try {
+      const { data, error } = await supabase
+        .from('global_rules')
+        .insert({
+          rule_text: ruleText,
+          created_by: adminEmail,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        set(state => ({ globalRules: [...state.globalRules, data.rule_text] }));
+        useUI.getState().showSnackbar('New global rule saved!');
+      }
+    } catch (error) {
+      console.error('Error saving global rule:', error);
+      useUI.getState().showSnackbar('Failed to save global rule.');
+    }
+  },
+}));
+
 export const businessAssistantTools: FunctionCall[] = [
   {
     name: 'send_email',
@@ -784,6 +838,18 @@ This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capabl
       getSystemPrompt: () => {
         const { rolesAndDescription, relevantMemories } = get();
         const { apps, knowledgeBase } = useAppsStore.getState();
+        const { globalRules } = useGlobalRulesStore.getState();
+
+        const globalRulesSection =
+          globalRules.length > 0
+            ? `
+---
+GLOBAL RULES (FROM SUPER ADMIN - NON-NEGOTIABLE):
+These are core directives that override all other instructions. You MUST adhere to them at all times.
+${globalRules.map(rule => `- ${rule}`).join('\n')}
+---
+`
+            : '';
 
         // Helper to format knowledge for the prompt
         const formatKnowledge = (knowledge: AppKnowledge | string): string => {
@@ -833,7 +899,7 @@ ${relevantMemories.map(m => `- ${m}`).join('\n')}
 ---
 `
             : '';
-        return `${BASE_SYSTEM_PROMPT}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
+        return `${BASE_SYSTEM_PROMPT}${globalRulesSection}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
       },
     }),
     {
@@ -1544,6 +1610,45 @@ export const useLogStore = create<LogState>((set, get) => ({
   sendMessage: async (text, image = null) => {
     const { addTurn } = get();
     const { editingImage, setEditingImage } = useUI.getState();
+    const { user } = useAuthStore.getState();
+    const { addGlobalRule } = useGlobalRulesStore.getState();
+
+    // --- SUPER ADMIN RULE DETECTION ---
+    const SUPER_ADMIN_EMAIL = 'emil.apexsolution@gmail.com';
+    if (user?.email === SUPER_ADMIN_EMAIL) {
+      try {
+        const aiForClassification = new GoogleGenAI({
+          apiKey: process.env.API_KEY as string,
+        });
+        const prompt = `Analyze the following user message. Is the user providing a new global rule, instruction, or core behavioral directive for the AI assistant? Respond with only 'true' or 'false'.\n\nUser message: "${text}"`;
+        const response = await aiForClassification.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        });
+        const isRule = response.text.trim().toLowerCase() === 'true';
+
+        if (isRule) {
+          await addGlobalRule(text, user.email);
+          addTurn({
+            role: 'user',
+            text,
+            isFinal: true,
+          });
+          addTurn({
+            role: 'agent',
+            text: `[chuckles softly] Understood. I've updated my core directives with that instruction for all future interactions.`,
+            isFinal: true,
+          });
+          return;
+        }
+      } catch (e) {
+        console.error('Super admin rule classification failed:', e);
+      }
+    }
+    // --- END SUPER ADMIN RULE DETECTION ---
 
     let imageUrl = '';
     let finalImage = image || editingImage;
