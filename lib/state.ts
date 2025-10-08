@@ -431,8 +431,16 @@ export const useAuthStore = create<AuthState>(set => ({
     return supabase.auth.signUp({ email, password });
   },
   signOut: async () => {
-    await supabase.auth.signOut();
-    set({ session: null, user: null });
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
+      useUI.getState().showSnackbar(`Sign out failed: ${error.message}`);
+    } else {
+      // The onAuthStateChange listener is the primary handler for state cleanup.
+      // We can set session to null here for immediate UI feedback, but the listener
+      // will also handle it.
+      set({ session: null, user: null });
+    }
   },
   resetPassword: async email => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -682,11 +690,11 @@ export const useUserSettings = create(
             roles_and_description: description,
           });
 
-          if (error) {
-            console.error('Error saving persona:', error);
-          }
-        } catch (error) {
-          console.error('Unexpected error saving persona:', error);
+          if (error) throw error;
+          useUI.getState().showSnackbar('Persona saved successfully!');
+        } catch (error: any) {
+          console.error('Error saving persona:', error);
+          useUI.getState().showSnackbar(`Failed to save persona: ${error.message}`);
         }
       },
       setVoice: async voice => {
@@ -702,11 +710,11 @@ export const useUserSettings = create(
             .from('user_settings')
             .upsert({ user_email: user.email, voice });
 
-          if (error) {
-            console.error('Error saving voice preference:', error);
-          }
-        } catch (error) {
-          console.error('Unexpected error saving voice preference:', error);
+          if (error) throw error;
+          useUI.getState().showSnackbar('Voice updated successfully.');
+        } catch (error: any) {
+          console.error('Error saving voice preference:', error);
+          useUI.getState().showSnackbar(`Failed to save voice: ${error.message}`);
         }
       },
       addMemory: async (memoryText: string) => {
@@ -1294,12 +1302,20 @@ export const useAppsStore = create<AppsState>((set, get) => ({
   fetchApps: async () => {
     set({ isLoading: true });
     try {
-      const { data, error } = await supabase
-        .from('apps')
-        .select('*')
-        .order('created_at', { ascending: true });
+      const { user } = useAuthStore.getState();
+      let fetchedApps: App[] = [];
 
-      if (error) throw error;
+      // Only fetch user-specific apps if a user is logged in
+      if (user?.email) {
+        const { data, error } = await supabase
+          .from('apps')
+          .select('*')
+          .eq('user_email', user.email)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        fetchedApps = data || [];
+      }
 
       // Define the default apps that should always be present
       const defaultApps: App[] = [
@@ -1347,7 +1363,6 @@ export const useAppsStore = create<AppsState>((set, get) => ({
         },
       ];
 
-      const fetchedApps = data || [];
       const finalApps = [...fetchedApps];
 
       // Add default apps if they are not already in the fetched list
@@ -1403,7 +1418,7 @@ export const useAppsStore = create<AppsState>((set, get) => ({
       const { data: newApp, error: insertError } = await supabase
         .from('apps')
         .insert({
-          user_email: null,
+          user_email: user.email,
           title,
           description,
           app_url,
