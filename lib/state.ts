@@ -945,16 +945,13 @@ ${relevantMemories.map(m => `- ${m}`).join('\n')}
  */
 interface GoogleIntegrationState {
   clientId: string;
-  clientSecret: string;
   redirectUri: string;
   isConfigured: boolean;
   isValidated: boolean;
   errors: {
     clientId?: string;
-    clientSecret?: string;
   };
   setClientId: (id: string) => void;
-  setClientSecret: (secret: string) => void;
   validateCredentials: () => boolean;
   saveCredentials: () => void;
   editCredentials: () => void;
@@ -964,16 +961,13 @@ export const useGoogleIntegrationStore = create(
   persist<GoogleIntegrationState>(
     (set, get) => ({
       clientId: '742011825010-tm8ldjqsccf0vos8902cjbfrr3frbh19.apps.googleusercontent.com',
-      clientSecret: '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',
       redirectUri: 'https://voice.kithai.site',
       isConfigured: true,
       isValidated: true,
       errors: {},
       setClientId: id => set({ clientId: id, isValidated: false, errors: {} }),
-      setClientSecret: secret =>
-        set({ clientSecret: secret, isValidated: false, errors: {} }),
       validateCredentials: () => {
-        const { clientId, clientSecret } = get();
+        const { clientId } = get();
         const newErrors: GoogleIntegrationState['errors'] = {};
         let isValid = true;
 
@@ -986,18 +980,15 @@ export const useGoogleIntegrationStore = create(
           isValid = false;
         }
 
-        if (!clientSecret) {
-          newErrors.clientSecret = 'Client Secret cannot be empty.';
-          isValid = false;
-        }
-
         set({ errors: newErrors, isValidated: isValid });
         return isValid;
       },
       saveCredentials: () => {
         const isValid = get().validateCredentials();
         if (isValid) {
-          // In a real app, this would be an API call to a secure backend.
+          // In a real app, this would be an API call to a secure backend to save the clientId.
+          // For this app, we assume it's set via env vars, but this function can
+          // set the 'configured' state if a user manually enters a valid one.
           console.log('Saving credentials (simulated)...');
           set({ isConfigured: true });
         }
