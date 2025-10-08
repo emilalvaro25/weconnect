@@ -1019,6 +1019,7 @@ interface WhatsAppIntegrationState {
   userPhoneNumber: string | null;
   connectUser: (phoneNumber: string) => void;
   disconnectUser: () => void;
+  clearUserConnection: () => void;
 }
 
 // FIX: Refactored to use create<T>()(persist(...)) syntax for proper type inference.
@@ -1185,6 +1186,9 @@ export const useWhatsAppIntegrationStore = create<WhatsAppIntegrationState>()(
             });
         }
       },
+      clearUserConnection: () => {
+        set({ isUserConnected: false, userPhoneNumber: null });
+      },
     }),
     {
       name: 'twilio-whatsapp-integration-storage',
@@ -1215,6 +1219,7 @@ export const useTools = create<{
   addTool: () => void;
   removeTool: (toolName: string) => void;
   updateTool: (oldName: string, updatedTool: FunctionCall) => void;
+  resetTools: () => void;
 }>(set => ({
   tools: businessAssistantTools,
   toggleTool: (toolName: string) =>
@@ -1257,6 +1262,7 @@ export const useTools = create<{
         tool.name === oldName ? updatedTool : tool,
       ),
     })),
+  resetTools: () => set({ tools: businessAssistantTools }),
 }));
 
 /**
@@ -1293,6 +1299,7 @@ interface AppsState {
     logoFile: File;
   }) => Promise<void>;
   generateAndStoreAppKnowledge: () => Promise<void>;
+  clearAppsForLogout: () => void;
 }
 
 export const useAppsStore = create<AppsState>((set, get) => ({
@@ -1536,6 +1543,9 @@ Generate a JSON object that strictly follows the provided schema.`;
     } catch (error) {
       console.error('An error occurred in the knowledge generation process:', error);
     }
+  },
+  clearAppsForLogout: () => {
+    set({ apps: [], knowledgeBase: new Map(), isLoading: false });
   },
 }));
 

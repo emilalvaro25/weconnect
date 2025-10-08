@@ -37,6 +37,8 @@ import {
   useAppsStore,
   useSeenAppsStore,
   useGlobalRulesStore,
+  useTools,
+  useWhatsAppIntegrationStore,
 } from './lib/state';
 import Snackbar from './components/Snackbar';
 import WhatsAppModal from './components/WhatsAppModal';
@@ -73,9 +75,16 @@ function App() {
     turns,
     addTurn,
   } = useLogStore();
-  const { apps, fetchApps, generateAndStoreAppKnowledge } = useAppsStore();
+  const {
+    apps,
+    fetchApps,
+    generateAndStoreAppKnowledge,
+    clearAppsForLogout,
+  } = useAppsStore();
   const { seenAppIds, addSeenAppIds, clearSeenApps } = useSeenAppsStore();
   const { fetchGlobalRules } = useGlobalRulesStore();
+  const { resetTools } = useTools();
+  const { clearUserConnection } = useWhatsAppIntegrationStore();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -111,6 +120,9 @@ function App() {
         resetToDefaults();
         clearTurnsForLogout();
         clearSeenApps();
+        clearAppsForLogout();
+        resetTools();
+        clearUserConnection();
       }
     });
 
@@ -125,6 +137,9 @@ function App() {
     clearSeenApps,
     seedInitialKnowledge,
     fetchGlobalRules,
+    clearAppsForLogout,
+    resetTools,
+    clearUserConnection,
   ]);
 
   useEffect(() => {
