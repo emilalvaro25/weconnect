@@ -434,7 +434,14 @@ export const useAuthStore = create<AuthState>(set => ({
       console.error('Sign out error:', error);
       useUI.getState().showSnackbar(`Sign out failed: ${error.message}`);
     }
-    // No local state change here. onAuthStateChange will handle it.
+    // onAuthStateChange will also fire, but we clear state here to be immediate and robust.
+    useUserSettings.getState().resetToDefaults();
+    useLogStore.getState().clearTurnsForLogout();
+    useSeenAppsStore.getState().clearSeenApps();
+    useAppsStore.getState().clearAppsForLogout();
+    useTools.getState().resetTools();
+    useWhatsAppIntegrationStore.getState().clearUserConnection();
+    set({ session: null, user: null, loading: false });
   },
   resetPassword: async email => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -956,11 +963,11 @@ interface GoogleIntegrationState {
 export const useGoogleIntegrationStore = create(
   persist<GoogleIntegrationState>(
     (set, get) => ({
-      clientId: '',
-      clientSecret: '',
+      clientId: '742011825010-tm8ldjqsccf0vos8902cjbfrr3frbh19.apps.googleusercontent.com',
+      clientSecret: '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',
       redirectUri: 'https://voice.kithai.site',
-      isConfigured: false,
-      isValidated: false,
+      isConfigured: true,
+      isValidated: true,
       errors: {},
       setClientId: id => set({ clientId: id, isValidated: false, errors: {} }),
       setClientSecret: secret =>
@@ -1347,6 +1354,87 @@ const hardcodedApps: App[] = [
     app_url: 'https://zum-ten.vercel.app/',
     logo_url:
       'https://ockscvdpcdblgnfvociq.supabase.co/storage/v1/object/public/app_logos/Screenshot%20From%202025-10-07%2022-11-08.png',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999995',
+    user_email: null,
+    title: 'Google Calendar',
+    description: 'Organize your schedule and share events with others.',
+    app_url: 'https://calendar.google.com/',
+    logo_url: 'https://api.iconify.design/logos:google-calendar.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999994',
+    user_email: null,
+    title: 'Google Drive',
+    description: 'Store, share, and collaborate on files and folders.',
+    app_url: 'https://drive.google.com/',
+    logo_url: 'https://api.iconify.design/logos:google-drive.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999993',
+    user_email: null,
+    title: 'Gmail',
+    description: 'Secure, smart, and easy to use email.',
+    app_url: 'https://mail.google.com/',
+    logo_url: 'https://api.iconify.design/logos:google-gmail.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999992',
+    user_email: null,
+    title: 'Google Sheets',
+    description: 'Create and edit spreadsheets online.',
+    app_url: 'https://sheets.google.com/',
+    logo_url: 'https://api.iconify.design/logos:google-sheets.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999991',
+    user_email: null,
+    title: 'Slack',
+    description: 'Team communication and collaboration in one place.',
+    app_url: 'https://app.slack.com/',
+    logo_url: 'https://api.iconify.design/logos:slack-icon.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999990',
+    user_email: null,
+    title: 'Trello',
+    description: 'A visual tool for organizing your work and life.',
+    app_url: 'https://trello.com/',
+    logo_url: 'https://api.iconify.design/logos:trello.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999989',
+    user_email: null,
+    title: 'Notion',
+    description: 'The all-in-one workspace for your notes, tasks, wikis, and databases.',
+    app_url: 'https://www.notion.so/',
+    logo_url: 'https://api.iconify.design/logos:notion-icon.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999988',
+    user_email: null,
+    title: 'Jira',
+    description: 'The #1 software development tool used by agile teams.',
+    app_url: 'https://jira.atlassian.com/',
+    logo_url: 'https://api.iconify.design/logos:jira.svg',
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: '999987',
+    user_email: null,
+    title: 'YouTube',
+    description: 'Watch, share, and create videos.',
+    app_url: 'https://www.youtube.com/',
+    logo_url: 'https://api.iconify.design/logos:youtube-icon.svg',
     created_at: new Date().toISOString(),
   },
 ];
