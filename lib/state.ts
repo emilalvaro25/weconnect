@@ -950,6 +950,7 @@ interface GoogleIntegrationState {
   setClientSecret: (secret: string) => void;
   validateCredentials: () => boolean;
   saveCredentials: () => void;
+  editCredentials: () => void;
 }
 
 export const useGoogleIntegrationStore = create(
@@ -994,6 +995,7 @@ export const useGoogleIntegrationStore = create(
           set({ isConfigured: true });
         }
       },
+      editCredentials: () => set({ isConfigured: false, isValidated: false }),
     }),
     {
       name: 'google-integration-storage',
@@ -1021,6 +1023,7 @@ interface WhatsAppIntegrationState {
   setTwilioPhoneNumber: (token: string) => void;
   validateCredentials: () => boolean;
   saveCredentials: () => Promise<void>;
+  editCredentials: () => void;
   sendMessage: (
     recipientPhoneNumber: string,
     message: string,
@@ -1103,6 +1106,7 @@ export const useWhatsAppIntegrationStore = create<WhatsAppIntegrationState>()(
           showSnackbar(`Error: ${error.message || 'Failed to save credentials.'}`);
         }
       },
+      editCredentials: () => set({ isConfigured: false, isValidated: false }),
       sendMessage: async (recipientPhoneNumber, messageBody) => {
         const { isConfigured, isUserConnected } = get();
 

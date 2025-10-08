@@ -266,9 +266,17 @@ export default function Sidebar() {
                 </fieldset>
                 <div className="credential-actions">
                   {googleIntegration.isConfigured ? (
-                    <div className="status-indicator configured">
-                      <span className="icon">check_circle</span> Correctly
-                      Configured
+                    <div className="configured-container">
+                      <div className="status-indicator configured">
+                        <span className="icon">check_circle</span> Configured
+                      </div>
+                      <button
+                        className="secondary-button edit-button"
+                        onClick={googleIntegration.editCredentials}
+                        disabled={connected}
+                      >
+                        Edit
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -376,9 +384,17 @@ export default function Sidebar() {
                 </fieldset>
                 <div className="credential-actions">
                   {whatsAppIntegration.isConfigured ? (
-                    <div className="status-indicator configured">
-                      <span className="icon">check_circle</span> Correctly
-                      Configured
+                    <div className="configured-container">
+                      <div className="status-indicator configured">
+                        <span className="icon">check_circle</span> Configured
+                      </div>
+                      <button
+                        className="secondary-button edit-button"
+                        onClick={whatsAppIntegration.editCredentials}
+                        disabled={connected}
+                      >
+                        Edit
+                      </button>
                     </div>
                   ) : (
                     <>
@@ -420,8 +436,7 @@ export default function Sidebar() {
                 </p>
                 <div className="credential-actions">
                   <div className="status-indicator configured">
-                    <span className="icon">check_circle</span> Correctly
-                    Configured
+                    <span className="icon">check_circle</span> Configured
                   </div>
                 </div>
               </div>

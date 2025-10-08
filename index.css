@@ -1505,6 +1505,25 @@ form button:first-of-type {
   justify-content: center;
 }
 
+.configured-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.configured-container .status-indicator.configured {
+  flex-grow: 1;
+  width: auto;
+  justify-content: flex-start;
+}
+
+.configured-container .secondary-button.edit-button {
+  width: auto;
+  flex-shrink: 0;
+  padding: 10px 20px;
+}
+
 .status-indicator.active {
   color: var(--Green-500);
   font-size: 13px;
