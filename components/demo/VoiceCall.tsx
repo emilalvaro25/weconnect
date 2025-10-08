@@ -235,7 +235,11 @@ const VoiceCall = () => {
 
       <main className="voice-call-main">
         <div className="voice-call-orb-container">
-          <div className="voice-call-orb">
+          <div
+            className={cn('voice-call-orb', {
+              'agent-speaking': isAgentSpeaking,
+            })}
+          >
             {isCameraOn && (
               <video
                 ref={videoRef}

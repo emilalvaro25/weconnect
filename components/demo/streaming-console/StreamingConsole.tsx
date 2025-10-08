@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import WelcomeScreen from '../welcome-screen/WelcomeScreen';
 // FIX: Import LiveServerContent to correctly type the content handler.
 import { LiveConnectConfig, Modality, LiveServerContent, FunctionDeclaration } from '@google/genai';
+import cn from 'classnames';
 
 import { useLiveAPIContext } from '../../../contexts/LiveAPIContext';
 import {
@@ -75,6 +76,8 @@ export default function StreamingConsole() {
     setEditingImage({ data, mimeType });
   };
 
+  const isFunctionCallTrigger = (text: string) => text.startsWith('Triggering function call:');
+
 
   // Set the configuration for the Live API
   useEffect(() => {
@@ -117,7 +120,6 @@ export default function StreamingConsole() {
       systemInstruction: getSystemPrompt(),
       tools: [
         { functionDeclarations: functionDeclarations },
-        { googleSearch: {} }
       ],
     };
 
@@ -229,10 +231,12 @@ export default function StreamingConsole() {
                 <div className="transcription-source">
                   {t.role === 'system' && (
                     <span
-                      className="material-symbols-outlined system-icon"
+                      className={cn('material-symbols-outlined system-icon', {
+                        'processing-animation': isFunctionCallTrigger(t.text),
+                      })}
                       aria-hidden="true"
                     >
-                      settings_ethernet
+                      {isFunctionCallTrigger(t.text) ? 'sync' : 'settings_ethernet'}
                     </span>
                   )}
                   {t.role === 'user'
@@ -265,6 +269,13 @@ export default function StreamingConsole() {
                   </div>
                 )}
                 {renderContent(t.text)}
+                {t.role === 'agent' && !t.isFinal && i === turns.length - 1 && (
+                  <div className="typing-indicator">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                )}
               </div>
               {t.groundingChunks && t.groundingChunks.length > 0 && (
                 <div className="grounding-chunks">
