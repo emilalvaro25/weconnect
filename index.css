@@ -1625,6 +1625,77 @@ form button:first-of-type {
   z-index: 20;
 }
 
+.voice-call-persona-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.voice-call-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 16px;
+  background-color: rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(2px);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transition: background-color 0.3s ease;
+}
+
+/* Connected state */
+.voice-call-status.status-connected {
+  color: var(--Green-500);
+}
+.voice-call-status.status-connected .status-dot {
+  background-color: var(--Green-500);
+  box-shadow: 0 0 5px var(--Green-500);
+}
+
+/* Connecting state */
+.voice-call-status.status-connecting {
+  color: var(--accent-orange);
+}
+.voice-call-status.status-connecting .status-dot {
+  background-color: var(--accent-orange);
+  animation: connecting-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes connecting-dot-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 3px var(--accent-orange);
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0.7;
+    box-shadow: 0 0 8px var(--accent-orange);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 3px var(--accent-orange);
+  }
+}
+
+/* Disconnected state */
+.voice-call-status.status-disconnected {
+  color: var(--text-secondary);
+}
+.voice-call-status.status-disconnected .status-dot {
+  background-color: var(--text-secondary);
+}
+
+
 .voice-call-persona-name {
   font-size: 18px;
   font-weight: 500;

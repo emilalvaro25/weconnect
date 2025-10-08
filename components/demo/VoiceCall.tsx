@@ -32,6 +32,7 @@ const VoiceCall = () => {
     connect,
     disconnect,
     connected,
+    status,
     volume, // This is the agent's output volume
     isSpeakerMuted,
     toggleSpeakerMute,
@@ -207,7 +208,13 @@ const VoiceCall = () => {
         <span className="material-symbols-outlined">satellite_alt</span>
       </div>
       <header className="voice-call-header">
-        <span className="voice-call-persona-name">{personaName}</span>
+        <div className="voice-call-persona-status">
+          <span className="voice-call-persona-name">{personaName}</span>
+          <div className={cn('voice-call-status', `status-${status}`)}>
+            <div className="status-dot"></div>
+            <span className="status-text">{status.charAt(0).toUpperCase() + status.slice(1)}</span>
+          </div>
+        </div>
         <div className="voice-call-header-actions">
           {isCameraOn && (
             <button
