@@ -20,11 +20,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GenAILiveClient } from '../../lib/genai-live-client';
-import { LiveConnectConfig, Modality, LiveServerToolCall } from '@google/genai';
+import { LiveConnectConfig, Modality, LiveServerToolCall, GoogleGenAI } from '@google/genai';
 import { AudioStreamer } from '../../lib/audio-streamer';
 import { audioContext } from '../../lib/utils';
 import VolMeterWorket from '../../lib/worklets/vol-meter';
 import { useLogStore, useSettings, useUserSettings, useWhatsAppIntegrationStore, useAuthStore, useAppsStore, useUI } from '@/lib/state';
+import { supabase } from '../../lib/supabase';
 
 export type UseLiveApiResults = {
   client: GenAILiveClient;
@@ -390,6 +391,80 @@ async function handleLaunchApp(args: any) {
   }
 }
 
+async function handleSaveCsrTraining(args: any) {
+  const { training_text } = args;
+  if (!training_text) {
+    return 'Missing required text for training material.';
+  }
+  const { user } = useAuthStore.getState();
+  if (!user?.email) {
+    return 'Cannot save training material, user is not connected.';
+  }
+
+  try {
+    const ai = new GoogleGenAI({
+      apiKey: process.env.API_KEY as string,
+    });
+    // This assumes gemini-embedding-001 is a valid model for embedding content.
+    const result = await (ai.models as any).embedContent({
+      model: 'gemini-embedding-001',
+      content: training_text,
+    });
+    const embedding = result.embedding;
+
+    const { error } = await supabase.from('csr_training').insert({
+      user_email: user.email,
+      training_text: training_text,
+      embedding: embedding,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // If the CSR user is logged in, reload their data to apply the new training immediately.
+    if (user.email === 'csr@aitekchat.com') {
+      await useUserSettings.getState().loadUserData(user.email);
+    }
+
+    return 'Training material saved successfully.';
+  } catch (error: any) {
+    console.error('Error saving CSR training material:', error);
+    return `An error occurred while saving the training material: ${error.message}`;
+  }
+}
+
+async function handleSaveAndEmailCsrTraining(
+  args: any,
+  auth: { isGoogleConnected: boolean; accessToken: string | null },
+) {
+  const { training_text, email_subject } = args;
+  if (!training_text || !email_subject) {
+    return 'Missing training text or email subject.';
+  }
+
+  // 1. Save training
+  const saveResult = await handleSaveCsrTraining({ training_text });
+  if (!saveResult.includes('success')) {
+    return `Failed to save training: ${saveResult}`;
+  }
+
+  // 2. Email user
+  const { user } = useAuthStore.getState();
+  if (!user?.email) {
+    return 'User not logged in, cannot send email. Training was saved.';
+  }
+  const emailResult = await handleSendEmail(
+    { recipient: user.email, subject: email_subject, body: training_text },
+    auth,
+  );
+  if (!emailResult.includes('success')) {
+    return `Training was saved, but failed to send email: ${emailResult}`;
+  }
+
+  return 'Training material saved and emailed to you successfully.';
+}
+
 export function useLiveApi({
   apiKey,
 }: {
@@ -480,6 +555,15 @@ export function useLiveApi({
         let resultPromise;
 
         switch (fc.name) {
+          case 'save_and_email_csr_training':
+            resultPromise = handleSaveAndEmailCsrTraining(fc.args, {
+              isGoogleConnected,
+              accessToken,
+            });
+            break;
+          case 'save_csr_training':
+            resultPromise = handleSaveCsrTraining(fc.args);
+            break;
           case 'send_email':
             resultPromise = handleSendEmail(fc.args, {
               isGoogleConnected,

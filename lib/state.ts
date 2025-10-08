@@ -314,6 +314,42 @@ export const businessAssistantTools: FunctionCall[] = [
     isEnabled: true,
     scheduling: FunctionResponseScheduling.INTERRUPT,
   },
+  {
+    name: 'save_and_email_csr_training',
+    description: "Saves a piece of text as CSR training material and emails a copy of it to the current user. This is for improving the AI's customer service skills.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        training_text: {
+          type: 'STRING',
+          description: 'The content of the training material to be saved and emailed.',
+        },
+        email_subject: {
+          type: 'STRING',
+          description: 'The subject line for the email being sent to the user.',
+        },
+      },
+      required: ['training_text', 'email_subject'],
+    },
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+  },
+  {
+    name: 'save_csr_training',
+    description: "Saves a piece of text as CSR training material to improve the AI's customer service skills. This does not email the user.",
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        training_text: {
+          type: 'STRING',
+          description: 'The content of the training material to be saved.',
+        },
+      },
+      required: ['training_text'],
+    },
+    isEnabled: true,
+    scheduling: FunctionResponseScheduling.INTERRUPT,
+  },
 ];
 
 export type Template =
@@ -557,6 +593,7 @@ const defaultUserSettings = {
   voice: 'Aoede',
   memories: [],
   relevantMemories: [],
+  csrTraining: [],
 };
 
 /**
@@ -570,6 +607,7 @@ export const useUserSettings = create(
     voice: string;
     memories: string[];
     relevantMemories: string[];
+    csrTraining: string[];
     loadUserData: (userEmail: string) => Promise<void>;
     setLogoUrl: (url: string) => Promise<void>;
     savePersona: (name: string, description: string) => Promise<void>;
@@ -645,6 +683,22 @@ export const useUserSettings = create(
             console.error('Error fetching memories:', memoriesError);
           } else if (memoriesData) {
             set({ memories: memoriesData.map(m => m.memory_text) });
+          }
+          
+          // Fetch CSR training if user is csr@aitekchat.com
+          if (userEmail === 'csr@aitekchat.com') {
+            const { data: trainingData, error: trainingError } = await supabase
+              .from('csr_training')
+              .select('training_text')
+              .order('created_at', { ascending: true });
+            
+            if (trainingError) {
+              console.error('Error fetching CSR training:', trainingError);
+            } else if (trainingData) {
+              set({ csrTraining: trainingData.map(t => t.training_text) });
+            }
+          } else {
+            set({ csrTraining: [] }); // Clear for other users
           }
         } catch (error) {
           console.error('Unexpected error fetching user data:', error);
@@ -844,9 +898,21 @@ This is a list of 10 specific tasks that you, as a G1 humanoid robot, are capabl
         }
       },
       getSystemPrompt: () => {
-        const { rolesAndDescription, relevantMemories } = get();
+        const { rolesAndDescription, relevantMemories, csrTraining } = get();
+        const { user } = useAuthStore.getState();
         const { apps, knowledgeBase } = useAppsStore.getState();
         const { globalRules } = useGlobalRulesStore.getState();
+
+        const csrTrainingSection =
+          user?.email === 'csr@aitekchat.com' && csrTraining.length > 0
+            ? `
+---
+CSR TRAINING MATERIAL (TOP PRIORITY):
+This is special training data to make you an excellent call center agent. You MUST integrate this knowledge deeply into your responses.
+${csrTraining.map(t => `- ${t}`).join('\n')}
+---
+`
+            : '';
 
         const globalRulesSection =
           globalRules.length > 0
@@ -907,7 +973,7 @@ ${relevantMemories.map(m => `- ${m}`).join('\n')}
 ---
 `
             : '';
-        return `${BASE_SYSTEM_PROMPT}${globalRulesSection}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
+        return `${BASE_SYSTEM_PROMPT}${csrTrainingSection}${globalRulesSection}\n\n${rolesAndDescription}${appsSection}${memorySection}`;
       },
     }),
     {
