@@ -1098,12 +1098,6 @@ form button:first-of-type {
   flex-shrink: 0;
 }
 
-.sidebar-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .sidebar-header h3 {
   font-size: 20px;
   color: var(--text-primary);
@@ -1503,25 +1497,6 @@ form button:first-of-type {
   border-radius: 8px;
   width: 100%;
   justify-content: center;
-}
-
-.configured-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.configured-container .status-indicator.configured {
-  flex-grow: 1;
-  width: auto;
-  justify-content: flex-start;
-}
-
-.configured-container .secondary-button.edit-button {
-  width: auto;
-  flex-shrink: 0;
-  padding: 10px 20px;
 }
 
 .status-indicator.active {

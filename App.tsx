@@ -188,19 +188,11 @@ ${JSON.stringify(newApps.map(app => ({ title: app.title, description: app.descri
               });
             }
 
-            // Mark these apps as seen on success
+            // Mark these apps as seen
             addSeenAppIds(newApps.map(app => app.id));
-          } catch (error: any) {
+          } catch (error) {
             console.error('Failed to generate new app introduction:', error);
-            if (error.message && error.message.includes('RESOURCE_EXHAUSTED')) {
-              useUI
-                .getState()
-                .showSnackbar(
-                  'Could not generate welcome message due to API limits.',
-                );
-            }
-            // Also mark as seen on failure to prevent retrying on every app load
-            addSeenAppIds(newApps.map(app => app.id));
+            // Don't mark as seen if it fails, so it can try again next time.
           }
         }
       }

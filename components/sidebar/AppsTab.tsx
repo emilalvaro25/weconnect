@@ -19,7 +19,7 @@ export default function AppsTab() {
           aria-label="Add new app"
           onClick={showAddAppModal}
         >
-          <span className="material-symbols-outlined">add_circle</span>
+          <span className="material-symbols-outlined">add</span>
         </button>
       </div>
       {isLoading && <p>Loading apps...</p>}
